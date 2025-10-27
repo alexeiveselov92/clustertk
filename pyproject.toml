@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clustertk"
-version = "0.1.0"
+version = "0.1.1"
 description = "A comprehensive toolkit for cluster analysis with full pipeline support"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Aleksey Veselov", email = "alexei.veselov92@gmail.com"}
 ]
 keywords = ["clustering", "machine-learning", "data-analysis", "pipeline", "kmeans", "pca", "data-science"]
 classifiers = [
@@ -66,10 +66,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/clustertk"
+Homepage = "https://github.com/alexeiveselov92/clustertk"
 Documentation = "https://clustertk.readthedocs.io"
-Repository = "https://github.com/yourusername/clustertk"
-"Bug Tracker" = "https://github.com/yourusername/clustertk/issues"
+Repository = "https://github.com/alexeiveselov92/clustertk"
+"Bug Tracker" = "https://github.com/alexeiveselov92/clustertk/issues"
 
 [tool.black]
 line-length = 100

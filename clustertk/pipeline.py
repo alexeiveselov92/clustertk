@@ -294,7 +294,37 @@ class ClusterAnalysisPipeline:
         if self.verbose:
             print(f"  Initial data shape: {data_working.shape}")
 
-        # Step 1.1: Handle missing values
+        # Step 1.1: Handle infinity and extreme values (replace with NaN)
+        # Check for infinity
+        inf_mask = np.isinf(data_working.values)
+        inf_count = inf_mask.sum()
+
+        # Check for extremely large values that may cause issues
+        # Use a threshold of 1e308 (close to float64 max ~1.8e308)
+        extreme_mask = np.abs(data_working.values) > 1e100
+        extreme_count = extreme_mask.sum() - inf_count  # Don't double count infinity
+
+        total_problematic = inf_count + extreme_count
+
+        if total_problematic > 0:
+            if self.verbose:
+                if inf_count > 0 and extreme_count > 0:
+                    print(f"  Detected {inf_count} infinity and {extreme_count} extreme values, replacing with NaN...")
+                elif inf_count > 0:
+                    print(f"  Detected {inf_count} infinity values, replacing with NaN...")
+                else:
+                    print(f"  Detected {extreme_count} extreme values, replacing with NaN...")
+
+            # Replace infinity with NaN
+            data_working = data_working.replace([np.inf, -np.inf], np.nan)
+
+            # Replace extreme values with NaN
+            data_working = data_working.mask(np.abs(data_working) > 1e100)
+
+            if self.verbose:
+                print(f"    ✓ Problematic values replaced with NaN")
+
+        # Step 1.2: Handle missing values
         if self.verbose:
             missing_count = data_working.isnull().sum().sum()
             if missing_count > 0:
@@ -306,7 +336,7 @@ class ClusterAnalysisPipeline:
         if self.verbose and missing_count > 0:
             print(f"    ✓ Missing values handled")
 
-        # Step 1.2: Apply log transformation to skewed features (if enabled)
+        # Step 1.3: Apply log transformation to skewed features (if enabled)
         if self.log_transform_skewed:
             if self.verbose:
                 print(f"  Detecting skewed features (threshold: {self.skewness_threshold})...")
@@ -320,9 +350,20 @@ class ClusterAnalysisPipeline:
             if self.verbose and len(self._transformer.skewed_features_) > 0:
                 print(f"    ✓ Transformed {len(self._transformer.skewed_features_)} skewed features")
 
+            # Check again for infinity after transformation
+            inf_after_transform = np.isinf(data_working.values).sum()
+            if inf_after_transform > 0:
+                if self.verbose:
+                    print(f"  Detected {inf_after_transform} infinity values after transformation, replacing with NaN...")
+                data_working = data_working.replace([np.inf, -np.inf], np.nan)
+                # Re-impute new missing values
+                data_working = self._missing_handler.transform(data_working)
+                if self.verbose:
+                    print(f"    ✓ Post-transformation infinity handled")
+
         self.data_preprocessed_ = data_working.copy()
 
-        # Step 1.3: Handle outliers and scaling
+        # Step 1.4: Handle outliers and scaling
         if self.verbose:
             print(f"  Scaling data (method: {self.scaling})...")
 
