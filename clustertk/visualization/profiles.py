@@ -117,7 +117,7 @@ def plot_cluster_heatmap(
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -226,7 +226,7 @@ def plot_cluster_radar(
                  fontweight='bold', pad=20)
     ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -312,6 +312,6 @@ def plot_feature_importance(
         ax.text(v, i, f' {v:.3f}', va='center',
                 ha='left' if v > 0 else 'right', fontsize=9)
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig

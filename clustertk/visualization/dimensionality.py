@@ -127,7 +127,7 @@ def plot_pca_variance(
     lines2, labels2 = ax2.get_legend_handles_labels()
     ax.legend(lines1 + lines2, labels1 + labels2, loc='center right')
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -208,7 +208,7 @@ def plot_pca_loadings(
         axes[idx].axis('off')
 
     fig.suptitle(title or 'PCA Component Loadings', fontsize=14, fontweight='bold')
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -283,6 +283,6 @@ def plot_elbow(
     if optimal_k is not None:
         ax.legend()
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig

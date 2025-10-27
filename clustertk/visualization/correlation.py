@@ -124,7 +124,7 @@ def plot_correlation_matrix(
     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -257,7 +257,7 @@ def plot_correlation_network(
     ]
     ax.legend(handles=legend_elements, loc='upper right')
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -342,6 +342,6 @@ def plot_feature_distributions(
         axes[idx].axis('off')
 
     fig.suptitle('Feature Distributions', fontsize=14, fontweight='bold')
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig

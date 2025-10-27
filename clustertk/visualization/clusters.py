@@ -207,7 +207,7 @@ def plot_clusters_2d(
     ax.legend(loc='best', frameon=True, fancybox=True, shadow=True)
     ax.grid(True, alpha=0.3, linestyle='--')
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
 
@@ -290,6 +290,6 @@ def plot_cluster_sizes(
                 f'{int(noise_count)}\n({noise_count/len(labels)*100:.1f}%)',
                 ha='center', va='bottom', fontsize=10)
 
-    plt.tight_layout()
+    fig.tight_layout()
 
     return fig
