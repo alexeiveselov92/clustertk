@@ -41,7 +41,7 @@ pip install clustertk[all]
 ### Development Installation
 
 ```bash
-git clone https://github.com/yourusername/clustertk.git
+git clone https://github.com/alexeiveselov92/clustertk.git
 cd clustertk
 pip install -e .[dev]
 ```
@@ -335,10 +335,10 @@ If you use ClusterTK in your research, please cite:
 
 ```bibtex
 @software{clustertk,
-  author = {Your Name},
+  author = {Aleksey Veselov},
   title = {ClusterTK: A Comprehensive Toolkit for Cluster Analysis},
   year = {2024},
-  url = {https://github.com/yourusername/clustertk}
+  url = {https://github.com/alexeiveselov92/clustertk}
 }
 ```
 
@@ -363,6 +363,6 @@ ClusterTK builds upon the excellent work of:
 
 ## Support
 
-- 📧 Email: your.email@example.com
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/clustertk/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/clustertk/discussions)
+- 📧 Email: alexei.veselov92@gmail.com
+- 🐛 Issues: [GitHub Issues](https://github.com/alexeiveselov92/clustertk/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/alexeiveselov92/clustertk/discussions)

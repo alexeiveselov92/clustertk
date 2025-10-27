@@ -1,8 +1,137 @@
 # ClusterTK - План разработки библиотеки
 
+## Статус: v0.1.0 Опубликовано на PyPI ✅
+
+**PyPI:** https://pypi.org/project/clustertk/
+**GitHub:** https://github.com/alexeiveselov92/clustertk
+
 ## Видение проекта
 
 ClusterTK - это библиотека для полного пайплайна кластерного анализа, разработанная для аналитиков. Цель: предоставить удобный API, где пользователь может передать датафрейм и настраивать каждый шаг через параметры, без написания кода.
+
+## ✅ Что уже готово (v0.1.0)
+
+### Фаза 1: Базовая инфраструктура - ГОТОВО ✅
+- [x] Создать структуру проекта
+- [x] Настроить setup.py / pyproject.toml
+- [x] Настроить окружение разработки
+- [x] Создать базовый ClusterAnalysisPipeline класс
+- [x] Опубликовать на GitHub и PyPI
+
+### Фаза 2: Модули предобработки - ГОТОВО ✅
+- [x] `preprocessing/missing.py` - MissingValueHandler
+- [x] `preprocessing/outliers.py` - OutlierHandler
+- [x] `preprocessing/scaling.py` - ScalerSelector
+- [x] `preprocessing/transforms.py` - SkewnessTransformer
+- [x] Интеграция в Pipeline
+
+### Фаза 3: Отбор признаков - ГОТОВО ✅
+- [x] `feature_selection/correlation.py` - CorrelationFilter
+- [x] `feature_selection/variance.py` - VarianceFilter
+- [x] Интеграция в Pipeline
+
+### Фаза 4: Снижение размерности - ГОТОВО ✅
+- [x] `dimensionality/pca.py` - PCAReducer
+- [x] `dimensionality/manifold.py` - ManifoldReducer (t-SNE, UMAP)
+- [x] Интеграция в Pipeline
+
+### Фаза 5: Кластеризация - ЧАСТИЧНО ✅
+- [x] `clustering/base.py` - BaseClusterer
+- [x] `clustering/kmeans.py` - KMeansClustering
+- [x] `clustering/gmm.py` - GMMClustering
+- [ ] `clustering/hierarchical.py` - HierarchicalClustering ⚠️
+- [ ] `clustering/dbscan.py` - DBSCANClustering ⚠️
+- [x] Интеграция в Pipeline
+
+### Фаза 6: Оценка качества - ГОТОВО ✅
+- [x] `evaluation/metrics.py` - compute_clustering_metrics
+- [x] `evaluation/optimal_k.py` - OptimalKFinder
+- [x] Интеграция в Pipeline
+
+### Фаза 7: Интерпретация - ЧАСТИЧНО ✅
+- [x] `interpretation/profiles.py` - ClusterProfiler
+- [ ] `interpretation/naming.py` - ClusterNamer ⚠️
+- [x] Интеграция в Pipeline
+
+### Фаза 8: Визуализация - НЕ ГОТОВО ⚠️
+- [ ] `visualization/correlation.py` - Heatmap корреляций
+- [ ] `visualization/distributions.py` - Boxplots, histograms
+- [ ] `visualization/dimensionality.py` - Scree plot, biplot
+- [ ] `visualization/clusters.py` - 2D scatter (t-SNE/UMAP)
+- [ ] `visualization/profiles.py` - Heatmaps, radar charts
+- [ ] Интеграция в Pipeline
+
+### Фаза 9: Экспорт и отчёты - НЕ ГОТОВО ⚠️
+- [ ] Экспорт результатов (CSV, JSON, pickle)
+- [ ] HTML отчёт с графиками
+- [ ] Интеграция в Pipeline
+
+### Фаза 10: Документация и примеры - ЧАСТИЧНО ✅
+- [x] README.md с примерами
+- [x] ARCHITECTURE.md с дизайн-решениями
+- [x] Базовый example script
+- [ ] Настроить Sphinx
+- [ ] API reference для всех классов
+- [ ] Tutorial notebooks
+- [ ] Продвинутые примеры
+
+### Фаза 11: Тесты и полировка - НЕ ГОТОВО ⚠️
+- [ ] Unit tests для всех модулей
+- [ ] Integration tests для Pipeline
+- [ ] Покрытие тестами > 80%
+- [ ] CI/CD (GitHub Actions)
+- [ ] Проверка type hints
+- [ ] Бенчмарки производительности
+
+## 🎯 Приоритеты на v0.2.0
+
+### HIGH PRIORITY (обязательно для v0.2.0)
+
+1. **Добавить оставшиеся алгоритмы кластеризации**
+   - HierarchicalClustering (Ward, Complete, Average linkage)
+   - DBSCANClustering с автоподбором параметров
+
+2. **Реализовать Visualization модуль**
+   - Все основные plot функции
+   - Интеграция с Pipeline через методы `.plot_*()`
+   - Проверка наличия viz dependencies
+
+3. **ClusterNamer для автоматического именования**
+   - Эвристики на основе профилей
+   - Интеграция с category_mapping
+
+### MEDIUM PRIORITY (желательно для v0.2.0)
+
+4. **Написать тесты**
+   - Unit tests для каждого модуля
+   - Integration tests для Pipeline
+   - Цель: покрытие >80%
+
+5. **Экспорт результатов**
+   - CSV/JSON export
+   - HTML отчёт (если viz установлен)
+   - Методы в Pipeline
+
+6. **Больше примеров**
+   - Jupyter notebooks с детальными примерами
+   - Примеры для разных use cases
+   - Пример использования без viz
+
+### LOW PRIORITY (для будущих версий)
+
+7. **Документация Sphinx**
+   - Настроить Sphinx
+   - API reference
+   - User guide
+
+8. **CI/CD**
+   - GitHub Actions для тестов
+   - Автоматический deploy на PyPI
+
+9. **Дополнительные фичи**
+   - Больше алгоритмов (Spectral, HDBSCAN)
+   - Feature engineering
+   - Поддержка больших данных (Dask)
 
 ## Архитектура
 

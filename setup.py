@@ -41,12 +41,12 @@ dev_requires = [
 setup(
     name='clustertk',
     version='0.1.0',
-    author='Your Name',
-    author_email='your.email@example.com',
+    author='Aleksey Veselov',
+    author_email='alexei.veselov92@gmail.com',
     description='A comprehensive toolkit for cluster analysis with full pipeline support',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/yourusername/clustertk',
+    url='https://github.com/alexeiveselov92/clustertk',
     packages=find_packages(exclude=['tests', 'tests.*', 'examples', 'docs']),
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -70,7 +70,7 @@ setup(
     },
     keywords='clustering, machine-learning, data-analysis, pipeline, kmeans, pca, data-science',
     project_urls={
-        'Bug Reports': 'https://github.com/yourusername/clustertk/issues',
-        'Source': 'https://github.com/yourusername/clustertk',
+        'Bug Reports': 'https://github.com/alexeiveselov92/clustertk/issues',
+        'Source': 'https://github.com/alexeiveselov92/clustertk',
     },
 )
