@@ -104,11 +104,14 @@ class ClusterProfiler:
         self.profiles_ = data_with_labels.groupby('cluster')[self._feature_names].mean()
 
         # Normalize profiles per feature (for visualization)
+        # Use the range from original data, not from cluster means
+        # This prevents all values becoming 0/1 with small number of clusters
         if self.normalize_per_feature:
             self.profiles_normalized_ = self.profiles_.copy()
             for col in self.profiles_normalized_.columns:
-                col_min = self.profiles_normalized_[col].min()
-                col_max = self.profiles_normalized_[col].max()
+                # Use min/max from original data, not from cluster means
+                col_min = X[col].min()
+                col_max = X[col].max()
                 if col_max != col_min:
                     self.profiles_normalized_[col] = (
                         (self.profiles_normalized_[col] - col_min) / (col_max - col_min)

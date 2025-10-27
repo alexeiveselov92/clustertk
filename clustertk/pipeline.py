@@ -727,6 +727,9 @@ class ClusterAnalysisPipeline:
             feature_names=self.selected_features_
         )
 
+        # Store normalized profiles for visualization
+        self.cluster_profiles_normalized_ = self._profiler.profiles_normalized_
+
         # Get top distinguishing features
         self._profiler.get_top_features(n=5)
 
@@ -1051,12 +1054,20 @@ class ClusterAnalysisPipeline:
         if self.cluster_profiles_ is None:
             raise ValueError("No cluster profiles available. Run fit() or create_profiles() first.")
 
+        # Use pre-normalized profiles if available and normalization is requested
+        if normalize and hasattr(self, 'cluster_profiles_normalized_') and self.cluster_profiles_normalized_ is not None:
+            profiles_to_plot = self.cluster_profiles_normalized_
+            apply_normalization = False  # Already normalized
+        else:
+            profiles_to_plot = self.cluster_profiles_
+            apply_normalization = normalize
+
         return plot_cluster_heatmap(
-            profiles=self.cluster_profiles_,
+            profiles=profiles_to_plot,
             title=title,
             figsize=figsize,
             cmap=cmap,
-            normalize=normalize,
+            normalize=apply_normalization,
             ax=ax
         )
 
@@ -1100,12 +1111,20 @@ class ClusterAnalysisPipeline:
         if self.cluster_profiles_ is None:
             raise ValueError("No cluster profiles available. Run fit() or create_profiles() first.")
 
+        # Use pre-normalized profiles if available and normalization is requested
+        if normalize and hasattr(self, 'cluster_profiles_normalized_') and self.cluster_profiles_normalized_ is not None:
+            profiles_to_plot = self.cluster_profiles_normalized_
+            apply_normalization = False  # Already normalized
+        else:
+            profiles_to_plot = self.cluster_profiles_
+            apply_normalization = normalize
+
         return plot_cluster_radar(
-            profiles=self.cluster_profiles_,
+            profiles=profiles_to_plot,
             cluster_ids=cluster_ids,
             title=title,
             figsize=figsize,
-            normalize=normalize
+            normalize=apply_normalization
         )
 
     def plot_feature_importance(
