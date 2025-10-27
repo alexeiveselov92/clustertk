@@ -23,7 +23,7 @@ Example:
     >>> profiles = pipeline.cluster_profiles_
 """
 
-__version__ = '0.3.2'
+__version__ = '0.3.3'
 
 from clustertk.pipeline import ClusterAnalysisPipeline
 
