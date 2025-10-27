@@ -1,15 +1,14 @@
 """
-Visualization module for plotting clustering results.
+Visualization module for clustering results.
 
-This module is OPTIONAL and requires viz dependencies:
-    pip install clustertk[viz]
-
-Provides plotting functions for:
-- Correlation matrices
-- Distributions and boxplots
-- PCA variance and biplots
+This module provides optional visualization functions for:
 - Cluster scatter plots (2D)
 - Cluster profiles (heatmaps, radar charts)
+- Dimensionality reduction (PCA variance, loadings)
+- Correlation matrices and networks
+- Feature distributions
+
+Install visualization dependencies with: pip install clustertk[viz]
 """
 
 import warnings
@@ -19,8 +18,10 @@ def check_viz_available() -> bool:
     """
     Check if visualization dependencies are installed.
 
-    Returns:
-        bool: True if matplotlib and seaborn are available, False otherwise
+    Returns
+    -------
+    bool
+        True if matplotlib and seaborn are available, False otherwise.
     """
     try:
         import matplotlib  # noqa: F401
@@ -30,23 +31,53 @@ def check_viz_available() -> bool:
         return False
 
 
-def _raise_viz_error() -> None:
-    """Raise ImportError with instructions for installing viz dependencies."""
-    raise ImportError(
-        "Visualization dependencies not installed. "
-        "Install with: pip install clustertk[viz]"
-    )
-
-
 # Conditional imports - only if viz dependencies are available
 if check_viz_available():
-    # These imports will be added as we implement the visualization functions
-    # from clustertk.visualization.correlation import plot_correlation_matrix
-    # from clustertk.visualization.distributions import plot_distributions
-    # from clustertk.visualization.dimensionality import plot_pca_variance, plot_pca_biplot
-    # from clustertk.visualization.clusters import plot_clusters_2d
-    # from clustertk.visualization.profiles import plot_cluster_heatmap, plot_cluster_radar
-    pass
+    # Cluster visualizations
+    from clustertk.visualization.clusters import (
+        plot_clusters_2d,
+        plot_cluster_sizes
+    )
+
+    # Profile visualizations
+    from clustertk.visualization.profiles import (
+        plot_cluster_heatmap,
+        plot_cluster_radar,
+        plot_feature_importance
+    )
+
+    # Dimensionality visualizations
+    from clustertk.visualization.dimensionality import (
+        plot_pca_variance,
+        plot_pca_loadings,
+        plot_elbow
+    )
+
+    # Correlation visualizations
+    from clustertk.visualization.correlation import (
+        plot_correlation_matrix,
+        plot_correlation_network,
+        plot_feature_distributions
+    )
+
+    __all__ = [
+        'check_viz_available',
+        # Clusters
+        'plot_clusters_2d',
+        'plot_cluster_sizes',
+        # Profiles
+        'plot_cluster_heatmap',
+        'plot_cluster_radar',
+        'plot_feature_importance',
+        # Dimensionality
+        'plot_pca_variance',
+        'plot_pca_loadings',
+        'plot_elbow',
+        # Correlation
+        'plot_correlation_matrix',
+        'plot_correlation_network',
+        'plot_feature_distributions',
+    ]
 else:
     warnings.warn(
         "Visualization dependencies (matplotlib, seaborn) not found. "
@@ -55,7 +86,4 @@ else:
         ImportWarning
     )
 
-__all__ = [
-    'check_viz_available',
-    # Plotting functions will be added here as we implement them
-]
+    __all__ = ['check_viz_available']

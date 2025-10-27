@@ -22,7 +22,17 @@ class ClusterAnalysisPipeline:
     - Clustering (K-Means, GMM, Hierarchical, DBSCAN)
     - Evaluation (metrics, optimal k finding)
     - Interpretation (profiling, naming)
-    - Visualization (optional)
+    - Visualization (optional - requires matplotlib and seaborn)
+      * plot_clusters_2d() - 2D scatter plots using t-SNE/UMAP/PCA
+      * plot_cluster_sizes() - cluster size distribution
+      * plot_cluster_heatmap() - cluster profiles heatmap
+      * plot_cluster_radar() - cluster profiles radar chart
+      * plot_feature_importance() - top distinguishing features
+      * plot_pca_variance() - PCA explained variance
+      * plot_pca_loadings() - PCA component loadings
+      * plot_correlation_matrix() - correlation matrix heatmap
+      * plot_correlation_network() - correlation network graph
+      * plot_feature_distributions() - feature distribution histograms
 
     Parameters
     ----------
@@ -69,6 +79,12 @@ class ClusterAnalysisPipeline:
     n_clusters_range : tuple, default=(2, 10)
         Range of cluster numbers to try for automatic selection (if n_clusters=None).
 
+    auto_name_clusters : bool, default=False
+        Whether to automatically generate descriptive names for clusters.
+
+    naming_max_features : int, default=2
+        Maximum number of features to include in cluster names.
+
     random_state : int, default=42
         Random state for reproducibility.
 
@@ -100,6 +116,9 @@ class ClusterAnalysisPipeline:
 
     cluster_profiles_ : pd.DataFrame
         Profile of each cluster (mean values of features).
+
+    cluster_names_ : dict or None
+        Descriptive names for each cluster (if auto_name_clusters=True).
 
     metrics_ : dict
         Clustering evaluation metrics.
@@ -147,6 +166,9 @@ class ClusterAnalysisPipeline:
         clustering_algorithm: Union[str, object] = 'kmeans',
         n_clusters: Optional[Union[int, List[int]]] = None,
         n_clusters_range: tuple = (2, 10),
+        # Naming parameters
+        auto_name_clusters: bool = False,
+        naming_max_features: int = 2,
         # General parameters
         random_state: int = 42,
         verbose: bool = True
@@ -164,6 +186,8 @@ class ClusterAnalysisPipeline:
         self.clustering_algorithm = clustering_algorithm
         self.n_clusters = n_clusters
         self.n_clusters_range = n_clusters_range
+        self.auto_name_clusters = auto_name_clusters
+        self.naming_max_features = naming_max_features
         self.random_state = random_state
         self.verbose = verbose
 
@@ -176,6 +200,7 @@ class ClusterAnalysisPipeline:
         self.labels_: Optional[np.ndarray] = None
         self.n_clusters_: Optional[int] = None
         self.cluster_profiles_: Optional[pd.DataFrame] = None
+        self.cluster_names_: Optional[Dict[int, str]] = None
         self.metrics_: Optional[Dict[str, Any]] = None
         self.model_: Optional[object] = None
 
@@ -189,6 +214,7 @@ class ClusterAnalysisPipeline:
         self._pca_reducer = None
         self._clusterer = None
         self._profiler = None
+        self._namer = None
 
     def fit(
         self,
@@ -728,10 +754,695 @@ class ClusterAnalysisPipeline:
             if self.verbose:
                 print("  ✓ Category analysis completed")
 
+        # Generate cluster names if enabled
+        if self.auto_name_clusters:
+            if self.verbose:
+                print(f"  Generating cluster names...")
+
+            self.name_clusters(
+                category_mapping=category_mapping,
+                max_features=self.naming_max_features
+            )
+
+            if self.verbose:
+                print("  ✓ Cluster naming completed")
+
         if self.verbose:
             print("  ✓ Profiling completed")
 
         return self
+
+    def name_clusters(
+        self,
+        category_mapping: Optional[Dict[str, List[str]]] = None,
+        naming_strategy: str = 'auto',
+        max_features: Optional[int] = None,
+        min_deviation: float = 0.5
+    ) -> Dict[int, str]:
+        """
+        Generate descriptive names for clusters.
+
+        Parameters
+        ----------
+        category_mapping : dict, optional
+            Mapping of category names to feature names.
+            Used for category-based naming if available.
+
+        naming_strategy : str, default='auto'
+            Naming strategy: 'auto', 'top_features', 'categories', or 'combined'.
+
+        max_features : int, optional
+            Maximum number of features to include in names.
+            If None, uses self.naming_max_features.
+
+        min_deviation : float, default=0.5
+            Minimum deviation from mean to consider a feature significant.
+
+        Returns
+        -------
+        names : dict
+            Dictionary mapping cluster ID to generated name.
+        """
+        from clustertk.interpretation import ClusterNamer
+
+        if self._profiler is None or self.cluster_profiles_ is None:
+            raise ValueError(
+                "Must call create_profiles() before generating names"
+            )
+
+        # Get category scores if category mapping was used
+        category_scores = None
+        if hasattr(self._profiler, 'category_scores_') and self._profiler.category_scores_ is not None:
+            category_scores = self._profiler.category_scores_
+
+        # Create namer
+        self._namer = ClusterNamer(
+            naming_strategy=naming_strategy,
+            max_features=max_features or self.naming_max_features,
+            min_deviation=min_deviation,
+            use_directions=True,
+            short_names=False
+        )
+
+        # Generate names
+        self.cluster_names_ = self._namer.generate_names(
+            profiles=self.cluster_profiles_,
+            top_features=self._profiler.top_features_,
+            category_scores=category_scores,
+            category_mapping=category_mapping
+        )
+
+        if self.verbose:
+            print("\n  Generated cluster names:")
+            for cluster_id in sorted(self.cluster_names_.keys()):
+                name = self.cluster_names_[cluster_id]
+                print(f"    Cluster {cluster_id}: {name}")
+
+        return self.cluster_names_
+
+    def get_cluster_name(self, cluster_id: int) -> Optional[str]:
+        """
+        Get the name for a specific cluster.
+
+        Parameters
+        ----------
+        cluster_id : int
+            Cluster ID.
+
+        Returns
+        -------
+        name : str or None
+            Cluster name, or None if naming not performed or cluster not found.
+        """
+        if self.cluster_names_ is None:
+            return None
+
+        return self.cluster_names_.get(cluster_id)
+
+    def print_cluster_summary(self) -> None:
+        """
+        Print a comprehensive summary of all clusters with names and profiles.
+        """
+        if self.cluster_profiles_ is None:
+            raise ValueError("Must call create_profiles() first")
+
+        print("\n" + "=" * 80)
+        print("CLUSTER SUMMARY")
+        print("=" * 80)
+
+        cluster_sizes = pd.Series(self.labels_).value_counts().sort_index()
+
+        for cluster_id in sorted(self.cluster_profiles_.index):
+            # Cluster header
+            size = cluster_sizes.get(cluster_id, 0)
+            pct = size / len(self.labels_) * 100
+
+            print(f"\nCluster {cluster_id} ({size} samples, {pct:.1f}%)")
+
+            # Name if available
+            if self.cluster_names_ is not None and cluster_id in self.cluster_names_:
+                print(f"  Name: {self.cluster_names_[cluster_id]}")
+
+            # Top features
+            if hasattr(self._profiler, 'top_features_') and self._profiler.top_features_:
+                top_feats = self._profiler.top_features_.get(cluster_id, {})
+                high_feats = top_feats.get('high', [])[:3]
+                low_feats = top_feats.get('low', [])[:3]
+
+                if high_feats:
+                    print("  Top features:")
+                    for feat, val in high_feats:
+                        print(f"    ↑ {feat}: {val:+.3f}")
+
+                if low_feats:
+                    for feat, val in low_feats:
+                        print(f"    ↓ {feat}: {val:+.3f}")
+
+        print("\n" + "=" * 80)
+
+    # ============================================================
+    # Visualization Methods
+    # ============================================================
+
+    def plot_clusters_2d(
+        self,
+        method: str = 'tsne',
+        title: Optional[str] = None,
+        figsize: tuple = (10, 8),
+        show_centers: bool = False,
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot clusters in 2D space using dimensionality reduction.
+
+        Parameters
+        ----------
+        method : str, default='tsne'
+            Dimensionality reduction method: 'tsne', 'umap', or 'pca'.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(10, 8)
+            Figure size.
+
+        show_centers : bool, default=False
+            Whether to show cluster centers (if available).
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_clusters_2d
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.labels_ is None:
+            raise ValueError("No clustering results available. Run fit() or cluster() first.")
+
+        # Get cluster centers if available
+        centers = None
+        if show_centers and hasattr(self._clusterer, 'cluster_centers_'):
+            centers = self._clusterer.cluster_centers_
+
+        return plot_clusters_2d(
+            X=self.data_reduced_,
+            labels=self.labels_,
+            method=method,
+            title=title,
+            figsize=figsize,
+            show_centers=show_centers,
+            centers=centers,
+            ax=ax
+        )
+
+    def plot_cluster_sizes(
+        self,
+        title: Optional[str] = None,
+        figsize: tuple = (10, 6),
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot cluster size distribution as a bar chart.
+
+        Parameters
+        ----------
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(10, 6)
+            Figure size.
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_cluster_sizes
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.labels_ is None:
+            raise ValueError("No clustering results available. Run fit() or cluster() first.")
+
+        return plot_cluster_sizes(
+            labels=self.labels_,
+            title=title,
+            figsize=figsize,
+            ax=ax
+        )
+
+    def plot_cluster_heatmap(
+        self,
+        title: Optional[str] = None,
+        figsize: tuple = (12, 8),
+        cmap: str = 'RdYlGn',
+        normalize: bool = True,
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot cluster profiles as a heatmap.
+
+        Parameters
+        ----------
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(12, 8)
+            Figure size.
+
+        cmap : str, default='RdYlGn'
+            Colormap name.
+
+        normalize : bool, default=True
+            Whether to normalize each feature to 0-1 scale.
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_cluster_heatmap
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.cluster_profiles_ is None:
+            raise ValueError("No cluster profiles available. Run fit() or create_profiles() first.")
+
+        return plot_cluster_heatmap(
+            profiles=self.cluster_profiles_,
+            title=title,
+            figsize=figsize,
+            cmap=cmap,
+            normalize=normalize,
+            ax=ax
+        )
+
+    def plot_cluster_radar(
+        self,
+        cluster_ids: Optional[List[int]] = None,
+        title: Optional[str] = None,
+        figsize: tuple = (10, 10),
+        normalize: bool = True
+    ):
+        """
+        Plot cluster profiles as radar charts.
+
+        Parameters
+        ----------
+        cluster_ids : list of int, optional
+            Specific cluster IDs to plot. If None, plots all clusters.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(10, 10)
+            Figure size.
+
+        normalize : bool, default=True
+            Whether to normalize each feature to 0-1 scale.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_cluster_radar
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.cluster_profiles_ is None:
+            raise ValueError("No cluster profiles available. Run fit() or create_profiles() first.")
+
+        return plot_cluster_radar(
+            profiles=self.cluster_profiles_,
+            cluster_ids=cluster_ids,
+            title=title,
+            figsize=figsize,
+            normalize=normalize
+        )
+
+    def plot_feature_importance(
+        self,
+        cluster_id: int,
+        n_features: int = 10,
+        title: Optional[str] = None,
+        figsize: tuple = (10, 6),
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot top distinguishing features for a cluster.
+
+        Parameters
+        ----------
+        cluster_id : int
+            Cluster ID to visualize.
+
+        n_features : int, default=10
+            Number of top features to show.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(10, 6)
+            Figure size.
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_feature_importance
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self._profiler is None or not hasattr(self._profiler, 'top_features_'):
+            raise ValueError(
+                "No feature importance data available. "
+                "Run fit() or create_profiles() first."
+            )
+
+        return plot_feature_importance(
+            top_features=self._profiler.top_features_,
+            cluster_id=cluster_id,
+            n_features=n_features,
+            title=title,
+            figsize=figsize,
+            ax=ax
+        )
+
+    def plot_pca_variance(
+        self,
+        threshold: Optional[float] = None,
+        title: Optional[str] = None,
+        figsize: tuple = (12, 6),
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot PCA explained variance (scree plot).
+
+        Parameters
+        ----------
+        threshold : float, optional
+            Variance threshold line to show (e.g., 0.9 for 90%).
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(12, 6)
+            Figure size.
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_pca_variance
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self._pca_reducer is None:
+            raise ValueError("No PCA results available. Run fit() or reduce_dimensions() first.")
+
+        return plot_pca_variance(
+            explained_variance_ratio=self._pca_reducer.explained_variance_,
+            cumulative_variance=self._pca_reducer.cumulative_variance_,
+            threshold=threshold or self.pca_variance,
+            title=title,
+            figsize=figsize,
+            ax=ax
+        )
+
+    def plot_pca_loadings(
+        self,
+        components: Optional[list] = None,
+        n_features: int = 10,
+        title: Optional[str] = None,
+        figsize: tuple = (12, 8)
+    ):
+        """
+        Plot PCA component loadings.
+
+        Parameters
+        ----------
+        components : list, optional
+            Which components to plot (e.g., [0, 1, 2] for first 3 PCs).
+            If None, plots all components.
+
+        n_features : int, default=10
+            Number of top features to show per component.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(12, 8)
+            Figure size.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_pca_loadings
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self._pca_reducer is None:
+            raise ValueError("No PCA results available. Run fit() or reduce_dimensions() first.")
+
+        # Get loadings as DataFrame
+        loadings_df = pd.DataFrame(
+            self._pca_reducer.loadings_,
+            columns=[f'PC{i+1}' for i in range(self._pca_reducer.loadings_.shape[1])],
+            index=self.selected_features_
+        )
+
+        return plot_pca_loadings(
+            loadings=loadings_df,
+            components=components,
+            n_features=n_features,
+            title=title,
+            figsize=figsize
+        )
+
+    def plot_correlation_matrix(
+        self,
+        method: str = 'pearson',
+        title: Optional[str] = None,
+        figsize: tuple = (12, 10),
+        cmap: str = 'coolwarm',
+        annot: bool = False,
+        threshold: Optional[float] = None,
+        ax: Optional[Any] = None
+    ):
+        """
+        Plot correlation matrix of features.
+
+        Parameters
+        ----------
+        method : str, default='pearson'
+            Correlation method: 'pearson', 'spearman', or 'kendall'.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(12, 10)
+            Figure size.
+
+        cmap : str, default='coolwarm'
+            Colormap name.
+
+        annot : bool, default=False
+            Whether to annotate cells with correlation values.
+
+        threshold : float, optional
+            If provided, only shows correlations with |r| > threshold.
+
+        ax : matplotlib.axes.Axes, optional
+            Axes to plot on.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_correlation_matrix
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.data_scaled_ is None:
+            raise ValueError("No data available. Run fit() or preprocess() first.")
+
+        return plot_correlation_matrix(
+            data=self.data_scaled_[self.selected_features_] if self.selected_features_
+                 else self.data_scaled_,
+            method=method,
+            title=title,
+            figsize=figsize,
+            cmap=cmap,
+            annot=annot,
+            threshold=threshold,
+            ax=ax
+        )
+
+    def plot_correlation_network(
+        self,
+        threshold: float = 0.5,
+        method: str = 'pearson',
+        title: Optional[str] = None,
+        figsize: tuple = (12, 12),
+        node_size: int = 1000,
+        font_size: int = 10
+    ):
+        """
+        Plot correlation network graph.
+
+        Parameters
+        ----------
+        threshold : float, default=0.5
+            Minimum absolute correlation to show.
+
+        method : str, default='pearson'
+            Correlation method.
+
+        title : str, optional
+            Plot title.
+
+        figsize : tuple, default=(12, 12)
+            Figure size.
+
+        node_size : int, default=1000
+            Size of nodes.
+
+        font_size : int, default=10
+            Font size for labels.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_correlation_network
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.data_scaled_ is None:
+            raise ValueError("No data available. Run fit() or preprocess() first.")
+
+        return plot_correlation_network(
+            data=self.data_scaled_[self.selected_features_] if self.selected_features_
+                 else self.data_scaled_,
+            threshold=threshold,
+            method=method,
+            title=title,
+            figsize=figsize,
+            node_size=node_size,
+            font_size=font_size
+        )
+
+    def plot_feature_distributions(
+        self,
+        features: Optional[List[str]] = None,
+        n_cols: int = 3,
+        figsize: Optional[tuple] = None,
+        bins: int = 30
+    ):
+        """
+        Plot distribution histograms for features.
+
+        Parameters
+        ----------
+        features : list of str, optional
+            Features to plot. If None, plots all selected features.
+
+        n_cols : int, default=3
+            Number of columns in subplot grid.
+
+        figsize : tuple, optional
+            Figure size. If None, auto-calculated.
+
+        bins : int, default=30
+            Number of histogram bins.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        """
+        from clustertk.visualization import check_viz_available, plot_feature_distributions
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        if self.data_preprocessed_ is None:
+            raise ValueError("No data available. Run fit() or preprocess() first.")
+
+        # Use selected features if available, otherwise all features
+        data_to_plot = (self.data_preprocessed_[self.selected_features_]
+                       if self.selected_features_ else self.data_preprocessed_)
+
+        return plot_feature_distributions(
+            data=data_to_plot,
+            features=features,
+            n_cols=n_cols,
+            figsize=figsize,
+            bins=bins
+        )
 
     def export_results(
         self,
