@@ -108,8 +108,12 @@ class OptimalKFinder:
 
         # Test each k value
         for k in k_values:
-            # Fit clusterer
-            clusterer = clusterer_class(n_clusters=k, random_state=self.random_state)
+            # Fit clusterer (some algorithms don't support random_state)
+            # HierarchicalClustering is deterministic and doesn't use random_state
+            if clusterer_class.__name__ == 'HierarchicalClustering':
+                clusterer = clusterer_class(n_clusters=k)
+            else:
+                clusterer = clusterer_class(n_clusters=k, random_state=self.random_state)
             labels = clusterer.fit_predict(X)
 
             # Compute metrics

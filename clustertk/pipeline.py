@@ -504,12 +504,23 @@ class ClusterAnalysisPipeline:
         """
         Find optimal number of clusters if not specified.
 
+        Note: This step is skipped for DBSCAN as it doesn't require
+        specifying the number of clusters.
+
         Returns
         -------
         self : ClusterAnalysisPipeline
         """
         from clustertk.evaluation import OptimalKFinder
-        from clustertk.clustering import KMeansClustering, GMMClustering
+        from clustertk.clustering import KMeansClustering, GMMClustering, HierarchicalClustering
+
+        # Skip for DBSCAN
+        if isinstance(self.clustering_algorithm, str) and self.clustering_algorithm == 'dbscan':
+            if self.verbose:
+                print("\nStep 4/6: Finding optimal number of clusters...")
+                print("  Skipping for DBSCAN (density-based clustering)")
+                print("  ✓ Optimal cluster finding completed")
+            return self
 
         if self.verbose:
             print("\nStep 4/6: Finding optimal number of clusters...")
@@ -521,6 +532,8 @@ class ClusterAnalysisPipeline:
                 clusterer_class = KMeansClustering
             elif self.clustering_algorithm == 'gmm':
                 clusterer_class = GMMClustering
+            elif self.clustering_algorithm == 'hierarchical':
+                clusterer_class = HierarchicalClustering
             else:
                 # Default to KMeans
                 clusterer_class = KMeansClustering
@@ -570,25 +583,31 @@ class ClusterAnalysisPipeline:
         -------
         self : ClusterAnalysisPipeline
         """
-        from clustertk.clustering import KMeansClustering, GMMClustering
+        from clustertk.clustering import (
+            KMeansClustering,
+            GMMClustering,
+            HierarchicalClustering,
+            DBSCANClustering
+        )
         from clustertk.evaluation import compute_clustering_metrics
 
         if self.verbose:
             print("\nStep 5/6: Performing clustering...")
 
-        # Determine number of clusters
-        if n_clusters is not None:
-            self.n_clusters_ = n_clusters
-        elif self.n_clusters_ is None:
-            if isinstance(self.n_clusters, int):
-                self.n_clusters_ = self.n_clusters
-            elif isinstance(self.n_clusters, list):
-                self.n_clusters_ = self.n_clusters[0]
-            else:
-                self.n_clusters_ = 3
-
         # Determine algorithm
         algo = algorithm or self.clustering_algorithm
+
+        # Determine number of clusters (not used for DBSCAN)
+        if isinstance(algo, str) and algo != 'dbscan':
+            if n_clusters is not None:
+                self.n_clusters_ = n_clusters
+            elif self.n_clusters_ is None:
+                if isinstance(self.n_clusters, int):
+                    self.n_clusters_ = self.n_clusters
+                elif isinstance(self.n_clusters, list):
+                    self.n_clusters_ = self.n_clusters[0]
+                else:
+                    self.n_clusters_ = 3
 
         # Initialize clusterer
         if isinstance(algo, str):
@@ -602,8 +621,22 @@ class ClusterAnalysisPipeline:
                     n_clusters=self.n_clusters_,
                     random_state=self.random_state
                 )
+            elif algo == 'hierarchical':
+                self._clusterer = HierarchicalClustering(
+                    n_clusters=self.n_clusters_,
+                    linkage='ward',  # Default linkage
+                    metric='euclidean'
+                )
+            elif algo == 'dbscan':
+                self._clusterer = DBSCANClustering(
+                    eps='auto',  # Auto-estimate eps
+                    min_samples='auto'  # Auto-estimate min_samples
+                )
             else:
-                raise ValueError(f"Unknown algorithm '{algo}'. Use 'kmeans' or 'gmm'.")
+                raise ValueError(
+                    f"Unknown algorithm '{algo}'. "
+                    f"Use 'kmeans', 'gmm', 'hierarchical', or 'dbscan'."
+                )
         else:
             # Custom clusterer provided
             self._clusterer = algo
@@ -612,13 +645,25 @@ class ClusterAnalysisPipeline:
         self.labels_ = self._clusterer.fit_predict(self.data_reduced_)
         self.model_ = self._clusterer
 
+        # Update n_clusters_ from actual result (important for DBSCAN)
+        self.n_clusters_ = self._clusterer.n_clusters_
+
         # Compute metrics
         self.metrics_ = compute_clustering_metrics(self.data_reduced_, self.labels_)
 
         if self.verbose:
             print(f"  Algorithm: {algo}")
             print(f"  Number of clusters: {self.n_clusters_}")
-            print(f"  Cluster sizes: {dict(pd.Series(self.labels_).value_counts().sort_index())}")
+
+            # Show cluster sizes (handle noise for DBSCAN)
+            cluster_sizes = dict(pd.Series(self.labels_).value_counts().sort_index())
+            if -1 in cluster_sizes:
+                noise_count = cluster_sizes.pop(-1)
+                print(f"  Cluster sizes: {cluster_sizes}")
+                print(f"  Noise points: {noise_count}")
+            else:
+                print(f"  Cluster sizes: {cluster_sizes}")
+
             print(f"  Silhouette score: {self.metrics_['silhouette']:.3f}")
             print("  ✓ Clustering completed")
 
