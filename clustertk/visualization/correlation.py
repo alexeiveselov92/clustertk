@@ -120,11 +120,14 @@ def plot_correlation_matrix(
     ax.set_title(title or f'{method_name} Correlation Matrix{threshold_str}',
                  fontsize=14, fontweight='bold', pad=20)
 
-    # Rotate labels
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+    # Rotate x labels - use tick_params to avoid triggering extra rendering
+    ax.tick_params(axis='x', rotation=45)
+    # Set horizontal alignment after tick_params
+    for label in ax.get_xticklabels():
+        label.set_ha('right')
 
     fig.tight_layout()
+
 
     return fig
 
@@ -259,6 +262,7 @@ def plot_correlation_network(
 
     fig.tight_layout()
 
+
     return fig
 
 
@@ -343,5 +347,6 @@ def plot_feature_distributions(
 
     fig.suptitle('Feature Distributions', fontsize=14, fontweight='bold')
     fig.tight_layout()
+
 
     return fig

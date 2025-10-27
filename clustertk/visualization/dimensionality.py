@@ -129,6 +129,7 @@ def plot_pca_variance(
 
     fig.tight_layout()
 
+
     return fig
 
 
@@ -210,6 +211,7 @@ def plot_pca_loadings(
     fig.suptitle(title or 'PCA Component Loadings', fontsize=14, fontweight='bold')
     fig.tight_layout()
 
+
     return fig
 
 
@@ -284,5 +286,6 @@ def plot_elbow(
         ax.legend()
 
     fig.tight_layout()
+
 
     return fig

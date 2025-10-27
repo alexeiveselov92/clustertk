@@ -209,6 +209,7 @@ def plot_clusters_2d(
 
     fig.tight_layout()
 
+
     return fig
 
 
@@ -291,5 +292,6 @@ def plot_cluster_sizes(
                 ha='center', va='bottom', fontsize=10)
 
     fig.tight_layout()
+
 
     return fig
