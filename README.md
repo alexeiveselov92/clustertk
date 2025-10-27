@@ -220,6 +220,12 @@ pipeline.plot_cluster_heatmap()
 pipeline.plot_cluster_radar()
 ```
 
+**Note for Jupyter users:** To prevent automatic display duplication in Jupyter notebooks, add `;` at the end of plot commands:
+
+```python
+pipeline.plot_clusters_2d();  # Semicolon suppresses automatic display
+```
+
 ## Export Results
 
 ```python
