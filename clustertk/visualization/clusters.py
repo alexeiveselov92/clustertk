@@ -295,3 +295,96 @@ def plot_cluster_sizes(
     fig.tight_layout()
 
     return _prepare_figure_return(fig)
+
+
+def plot_algorithm_comparison(
+    comparison_df: pd.DataFrame,
+    title: Optional[str] = None,
+    figsize: tuple = (14, 6)
+):
+    """
+    Visualize algorithm comparison results.
+
+    Creates a figure with two subplots:
+    1. Metrics comparison (bar chart)
+    2. Cluster counts (bar chart)
+
+    Parameters
+    ----------
+    comparison_df : pd.DataFrame
+        Comparison results from pipeline.compare_algorithms()
+
+    title : str, optional
+        Plot title
+
+    figsize : tuple, default=(14, 6)
+        Figure size
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure object
+    """
+    from clustertk.visualization._utils import _check_viz_available, _prepare_figure_return
+    _check_viz_available()
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # Filter out failed algorithms
+    valid_df = comparison_df[comparison_df['n_clusters'].notna()].copy()
+
+    if len(valid_df) == 0:
+        raise ValueError("No valid algorithms to plot")
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+
+    if title is None:
+        title = 'Algorithm Comparison'
+    fig.suptitle(title, fontsize=14, fontweight='bold')
+
+    algorithms = valid_df['algorithm'].values
+    x_pos = np.arange(len(algorithms))
+
+    # Plot 1: Metrics comparison
+    metrics = [col for col in valid_df.columns 
+              if col not in ['algorithm', 'n_clusters', 'error']]
+
+    if metrics:
+        width = 0.25
+        for i, metric in enumerate(metrics):
+            if metric in valid_df.columns:
+                values = valid_df[metric].values
+                offset = (i - len(metrics)/2 + 0.5) * width
+                ax1.bar(x_pos + offset, values, width, label=metric, alpha=0.8)
+
+        ax1.set_xlabel('Algorithm', fontweight='bold')
+        ax1.set_ylabel('Score', fontweight='bold')
+        ax1.set_title('Clustering Metrics')
+        ax1.set_xticks(x_pos)
+        ax1.set_xticklabels(algorithms, rotation=45, ha='right')
+        ax1.legend()
+        ax1.grid(axis='y', alpha=0.3)
+
+    # Plot 2: Number of clusters
+    n_clusters = valid_df['n_clusters'].values
+    colors = plt.cm.viridis(np.linspace(0.3, 0.9, len(algorithms)))
+    bars = ax2.bar(x_pos, n_clusters, color=colors, alpha=0.8)
+
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(height)}',
+                ha='center', va='bottom', fontweight='bold')
+
+    ax2.set_xlabel('Algorithm', fontweight='bold')
+    ax2.set_ylabel('Number of Clusters', fontweight='bold')
+    ax2.set_title('Optimal Cluster Count')
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(algorithms, rotation=45, ha='right')
+    ax2.grid(axis='y', alpha=0.3)
+
+    plt.tight_layout()
+
+    return _prepare_figure_return(fig)

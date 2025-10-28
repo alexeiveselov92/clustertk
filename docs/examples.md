@@ -2,6 +2,86 @@
 
 Real-world examples and use cases for ClusterTK.
 
+## Algorithm Comparison
+
+Choose the best clustering algorithm automatically:
+
+```python
+import pandas as pd
+from clustertk import ClusterAnalysisPipeline
+
+# Load your data
+df = pd.read_csv('data.csv')
+features = ['feature1', 'feature2', 'feature3', 'feature4']
+
+# Initialize pipeline with preprocessing settings
+pipeline = ClusterAnalysisPipeline(
+    handle_missing='median',
+    handle_outliers='robust',
+    scaling='robust',
+    pca_variance=0.95,
+    verbose=True
+)
+
+# Compare all available algorithms
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=features,
+    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan'],
+    n_clusters_range=(2, 10),
+    metrics=['silhouette', 'calinski_harabasz', 'davies_bouldin']
+)
+
+# View comparison table
+print("\nComparison Results:")
+print(results['comparison'])
+# Output:
+#       algorithm  n_clusters  silhouette  calinski_harabasz  davies_bouldin
+# 0        kmeans           4    0.650394        1076.898364        0.512246
+# 1           gmm           4    0.650394        1076.898364        0.512246
+# 2  hierarchical           4    0.650394        1076.898364        0.512246
+# 3        dbscan           4    0.623707         735.818803        1.578299
+
+# Get recommendation
+print(f"\nRecommendation:")
+print(f"  Best algorithm: {results['best_algorithm']}")
+print(f"  Optimal n_clusters: {results['best_n_clusters']}")
+print(f"  Silhouette score: {results['best_score']:.3f}")
+
+# Visualize comparison
+fig = pipeline.plot_algorithm_comparison(
+    comparison_results=results,
+    title='Algorithm Performance Comparison'
+)
+fig.savefig('algorithm_comparison.png')
+
+# Create final pipeline with best settings
+final_pipeline = ClusterAnalysisPipeline(
+    handle_missing='median',
+    handle_outliers='robust',
+    scaling='robust',
+    pca_variance=0.95,
+    clustering_algorithm=results['best_algorithm'],
+    n_clusters=results['best_n_clusters'],
+    auto_name_clusters=True
+)
+
+# Fit and export
+final_pipeline.fit(df, feature_columns=features)
+final_pipeline.export_report('final_results.html')
+
+print(f"\n✓ Analysis complete with {results['best_algorithm']}")
+print(f"✓ Found {final_pipeline.n_clusters_} clusters")
+print(f"✓ Results exported to final_results.html")
+```
+
+**When to use algorithm comparison:**
+- You're unsure which algorithm suits your data
+- You want to validate your algorithm choice
+- You need to justify your algorithm selection
+- You're exploring a new dataset
+
+
 ## Customer Segmentation
 
 Segment customers based on behavior and demographics:

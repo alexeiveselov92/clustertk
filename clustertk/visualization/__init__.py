@@ -36,7 +36,8 @@ if check_viz_available():
     # Cluster visualizations
     from clustertk.visualization.clusters import (
         plot_clusters_2d,
-        plot_cluster_sizes
+        plot_cluster_sizes,
+        plot_algorithm_comparison
     )
 
     # Profile visualizations
@@ -65,6 +66,7 @@ if check_viz_available():
         # Clusters
         'plot_clusters_2d',
         'plot_cluster_sizes',
+        'plot_algorithm_comparison',
         # Profiles
         'plot_cluster_heatmap',
         'plot_cluster_radar',

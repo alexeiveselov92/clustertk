@@ -226,6 +226,113 @@ print(sizes)
 pipeline.plot_clusters_2d()
 ```
 
+
+## Algorithm Comparison (v0.7.0+)
+
+Not sure which algorithm to use? Let ClusterTK compare them for you!
+
+### Basic Comparison
+
+```python
+# Compare all algorithms
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=['feature1', 'feature2', 'feature3'],
+    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan'],
+    n_clusters_range=(2, 8)
+)
+
+# View comparison table
+print(results['comparison'])
+#    algorithm  n_clusters  silhouette  calinski_harabasz  davies_bouldin
+# 0     kmeans           4    0.650394        1076.898364        0.512246
+# 1        gmm           4    0.650394        1076.898364        0.512246
+# 2 hierarchical          4    0.650394        1076.898364        0.512246
+# 3     dbscan           4    0.623707         735.818803        1.578299
+
+# Get recommendation
+print(f"Best algorithm: {results['best_algorithm']}")
+print(f"Optimal clusters: {results['best_n_clusters']}")
+print(f"Silhouette score: {results['best_score']:.3f}")
+```
+
+### Visualize Comparison
+
+```python
+# Create comparison visualization
+pipeline.plot_algorithm_comparison(
+    comparison_results=results,
+    title='Algorithm Performance Comparison'
+)
+```
+
+This creates a two-panel figure:
+- **Left panel**: Metrics comparison (Silhouette, Calinski-Harabasz, Davies-Bouldin)
+- **Right panel**: Optimal cluster counts for each algorithm
+
+### How It Works
+
+1. **Same Preprocessing**: All algorithms use identical preprocessing settings from the pipeline
+2. **Range Testing**: Each algorithm is tested across the specified n_clusters_range
+3. **Optimal Selection**: For each algorithm, the k with the best silhouette score is selected
+4. **Weighted Scoring**: Algorithms are ranked using weighted metrics:
+   - Silhouette: 40% (higher is better)
+   - Calinski-Harabasz: 30% (higher is better)
+   - Davies-Bouldin: 30% (lower is better)
+
+### Customize Comparison
+
+```python
+# Test specific algorithms only
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=features,
+    algorithms=['kmeans', 'gmm'],  # Only these two
+    n_clusters_range=(3, 6)  # Narrower range
+)
+
+# Use specific metrics
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=features,
+    algorithms=['kmeans', 'gmm', 'hierarchical'],
+    metrics=['silhouette', 'calinski_harabasz']  # Skip davies_bouldin
+)
+
+# Access detailed results
+for algo, details in results['detailed_results'].items():
+    if 'error' not in details:
+        print(f"{algo}: {details['n_clusters']} clusters")
+        print(f"  Metrics: {details['metrics']}")
+```
+
+### Use Case: Auto-Select Best Algorithm
+
+```python
+# Step 1: Compare algorithms
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=features
+)
+
+# Step 2: Create new pipeline with best settings
+best_pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm=results['best_algorithm'],
+    n_clusters=results['best_n_clusters'],
+    # ... other settings ...
+)
+
+# Step 3: Fit with optimal configuration
+best_pipeline.fit(df, feature_columns=features)
+```
+
+### Tips
+
+- **Large datasets**: Use `algorithms=['kmeans']` first for speed, then compare others on a sample
+- **Unknown k**: Use wide range like `(2, 15)` to explore thoroughly
+- **Similar scores**: If algorithms have similar scores, choose based on interpretability (K-Means > GMM > Hierarchical > DBSCAN)
+- **DBSCAN**: May fail on some datasets (no clusters found). Check `'error'` in detailed_results
+
 ## Next Steps
 
 - [Evaluation](evaluation.md) - Assess cluster quality

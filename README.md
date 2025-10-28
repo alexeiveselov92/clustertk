@@ -116,6 +116,42 @@ Each step is configurable through pipeline parameters or can be run independentl
 - Pipeline serialization (save/load)
 
 ## Examples
+### Algorithm Comparison
+
+```python
+# Compare multiple algorithms automatically
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=['feature1', 'feature2', 'feature3'],
+    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan'],
+    n_clusters_range=(2, 8)
+)
+
+print(results['comparison'])  # DataFrame with metrics
+print(f"Best algorithm: {results['best_algorithm']}")
+
+# Visualize comparison
+pipeline.plot_algorithm_comparison(results)
+```
+
+
+### Algorithm Comparison
+
+```python
+# Compare multiple algorithms automatically
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=['feature1', 'feature2', 'feature3'],
+    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan'],
+    n_clusters_range=(2, 8)
+)
+
+print(results['comparison'])  # DataFrame with metrics
+print(f"Best algorithm: {results['best_algorithm']}")
+
+# Visualize comparison
+pipeline.plot_algorithm_comparison(results)
+```
 
 ### Customer Segmentation
 

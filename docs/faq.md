@@ -247,3 +247,26 @@ new_labels = loaded._clusterer.predict(loaded._pca_reducer.transform(
 ## More Questions?
 
 Check the [User Guide](user_guide/README.md) for detailed documentation or ask on [GitHub Discussions](https://github.com/alexeiveselov92/clustertk/discussions).
+
+### How do I choose the best clustering algorithm?
+
+Use the `compare_algorithms()` method to automatically compare multiple algorithms:
+
+```python
+results = pipeline.compare_algorithms(
+    X=df,
+    feature_columns=features,
+    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan']
+)
+
+print(f"Best algorithm: {results['best_algorithm']}")
+pipeline.plot_algorithm_comparison(results)
+```
+
+The method tests each algorithm across different cluster counts and recommends the best one based on weighted scoring (40% Silhouette, 30% Calinski-Harabasz, 30% Davies-Bouldin).
+
+**Quick guidelines:**
+- **K-Means**: Fast, spherical clusters, known k
+- **GMM**: Elliptical clusters, probabilistic
+- **Hierarchical**: Dendrogram, no need to specify k
+- **DBSCAN**: Arbitrary shapes, handles noise

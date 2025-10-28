@@ -1910,6 +1910,321 @@ class ClusterAnalysisPipeline:
 
         return pipeline
 
+    def compare_algorithms(
+        self,
+        X: pd.DataFrame,
+        feature_columns: Optional[List[str]] = None,
+        algorithms: Optional[List[str]] = None,
+        n_clusters_range: Optional[tuple] = None,
+        metrics: Optional[List[str]] = None,
+        return_pipelines: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Compare multiple clustering algorithms and recommend the best one.
+
+        This method runs the complete pipeline with different clustering algorithms,
+        evaluates each using multiple metrics, and provides a recommendation for
+        the best algorithm based on your data.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Input data to cluster.
+
+        feature_columns : list of str, optional
+            Column names to use as features. If None, uses all numeric columns.
+
+        algorithms : list of str, optional
+            Algorithms to compare. Default: ['kmeans', 'gmm', 'hierarchical', 'dbscan']
+            Available: 'kmeans', 'gmm', 'hierarchical', 'dbscan'.
+
+        n_clusters_range : tuple, optional
+            Range of cluster numbers to try (min, max) for algorithms that need k.
+            Default: self.n_clusters_range or (2, 8).
+
+        metrics : list of str, optional
+            Metrics to compute. Default: ['silhouette', 'calinski_harabasz', 'davies_bouldin']
+
+        return_pipelines : bool, default=False
+            Whether to return fitted pipeline objects for each algorithm.
+
+        Returns
+        -------
+        results : dict
+            Dictionary containing:
+            - 'comparison': pd.DataFrame with metrics for each algorithm
+            - 'best_algorithm': str, recommended algorithm name
+            - 'best_n_clusters': int, optimal number of clusters for best algorithm
+            - 'best_score': float, best silhouette score achieved
+            - 'detailed_results': dict with full results per algorithm
+            - 'pipelines': dict of fitted pipelines (if return_pipelines=True)
+
+        Examples
+        --------
+        >>> from clustertk import ClusterAnalysisPipeline
+        >>> import pandas as pd
+        >>>
+        >>> df = pd.read_csv('data.csv')
+        >>> pipeline = ClusterAnalysisPipeline()
+        >>>
+        >>> # Compare all algorithms
+        >>> results = pipeline.compare_algorithms(df, feature_columns=['f1', 'f2', 'f3'])
+        >>>
+        >>> # View comparison table
+        >>> print(results['comparison'])
+        >>>
+        >>> # Get recommendation
+        >>> print(f"Best algorithm: {results['best_algorithm']}")
+        >>> print(f"Optimal clusters: {results['best_n_clusters']}")
+        >>>
+        >>> # Use recommended settings
+        >>> pipeline.clustering_algorithm = results['best_algorithm']
+        >>> pipeline.n_clusters = results['best_n_clusters']
+        >>> pipeline.fit(df, feature_columns=['f1', 'f2', 'f3'])
+        """
+        if self.verbose:
+            print("\n" + "=" * 80)
+            print("ALGORITHM COMPARISON")
+            print("=" * 80)
+
+        # Set defaults
+        if algorithms is None:
+            algorithms = ['kmeans', 'gmm', 'hierarchical', 'dbscan']
+
+        if n_clusters_range is None:
+            n_clusters_range = self.n_clusters_range if hasattr(self, 'n_clusters_range') else (2, 8)
+
+        if metrics is None:
+            metrics = ['silhouette', 'calinski_harabasz', 'davies_bouldin']
+
+        # Storage for results
+        comparison_data = []
+        detailed_results = {}
+        pipelines = {} if return_pipelines else None
+
+        # Test each algorithm
+        for algo in algorithms:
+            if self.verbose:
+                print(f"\n{'-' * 80}")
+                print(f"Testing algorithm: {algo.upper()}")
+                print(f"{'-' * 80}")
+
+            try:
+                # Create pipeline with this algorithm
+                algo_pipeline = ClusterAnalysisPipeline(
+                    # Copy current preprocessing settings
+                    handle_missing=self.handle_missing,
+                    handle_outliers=self.handle_outliers,
+                    scaling=self.scaling,
+                    log_transform_skewed=self.log_transform_skewed,
+                    skewness_threshold=self.skewness_threshold,
+                    correlation_threshold=self.correlation_threshold,
+                    variance_threshold=self.variance_threshold,
+                    pca_variance=self.pca_variance,
+                    pca_min_components=self.pca_min_components,
+                    # Algorithm-specific settings
+                    clustering_algorithm=algo,
+                    n_clusters=None if algo == 'dbscan' else None,  # Auto-detect
+                    n_clusters_range=n_clusters_range,
+                    random_state=self.random_state,
+                    verbose=False  # Suppress individual pipeline output
+                )
+
+                # Fit pipeline
+                algo_pipeline.fit(X, feature_columns=feature_columns)
+
+                # Collect metrics
+                algo_metrics = algo_pipeline.metrics_
+                n_clusters = algo_pipeline.n_clusters_
+
+                # Store results
+                result_row = {
+                    'algorithm': algo,
+                    'n_clusters': n_clusters,
+                }
+
+                # Add requested metrics
+                for metric in metrics:
+                    if metric in algo_metrics:
+                        result_row[metric] = algo_metrics[metric]
+
+                comparison_data.append(result_row)
+
+                # Store detailed results
+                detailed_results[algo] = {
+                    'n_clusters': n_clusters,
+                    'metrics': algo_metrics,
+                    'labels': algo_pipeline.labels_,
+                    'cluster_sizes': pd.Series(algo_pipeline.labels_).value_counts().to_dict()
+                }
+
+                # Store pipeline if requested
+                if return_pipelines:
+                    pipelines[algo] = algo_pipeline
+
+                if self.verbose:
+                    print(f"  ✓ {algo}: {n_clusters} clusters, silhouette={algo_metrics.get('silhouette', 0):.3f}")
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"  ✗ {algo} failed: {str(e)}")
+                comparison_data.append({
+                    'algorithm': algo,
+                    'n_clusters': None,
+                    'error': str(e)
+                })
+
+        # Create comparison DataFrame
+        comparison_df = pd.DataFrame(comparison_data)
+
+        # Determine best algorithm
+        best_algo, best_k, best_score = self._select_best_algorithm(comparison_df, detailed_results)
+
+        if self.verbose:
+            print("\n" + "=" * 80)
+            print("COMPARISON RESULTS")
+            print("=" * 80)
+            print(comparison_df.to_string(index=False))
+            print("\n" + "=" * 80)
+            print(f"RECOMMENDATION: {best_algo.upper()}")
+            print(f"Optimal clusters: {best_k}")
+            print(f"Silhouette score: {best_score:.3f}")
+            print("=" * 80)
+
+        # Build results dictionary
+        results = {
+            'comparison': comparison_df,
+            'best_algorithm': best_algo,
+            'best_n_clusters': best_k,
+            'best_score': best_score,
+            'detailed_results': detailed_results
+        }
+
+        if return_pipelines:
+            results['pipelines'] = pipelines
+
+        return results
+
+    def _select_best_algorithm(
+        self,
+        comparison_df: pd.DataFrame,
+        detailed_results: Dict[str, Any]
+    ) -> tuple:
+        """
+        Select best algorithm based on metrics.
+
+        Uses weighted scoring:
+        - Silhouette: higher is better (weight: 0.4)
+        - Calinski-Harabasz: higher is better (weight: 0.3)
+        - Davies-Bouldin: lower is better (weight: 0.3)
+
+        Returns
+        -------
+        best_algo : str
+            Name of best algorithm
+        best_k : int
+            Optimal number of clusters
+        best_score : float
+            Best silhouette score
+        """
+        # Filter out failed algorithms
+        valid_df = comparison_df[comparison_df['n_clusters'].notna()].copy()
+
+        if len(valid_df) == 0:
+            raise ValueError("All algorithms failed")
+
+        # Normalize metrics to [0, 1] range
+        scores = {}
+
+        for idx, row in valid_df.iterrows():
+            algo = row['algorithm']
+            score = 0.0
+            weight_sum = 0.0
+
+            # Silhouette (higher is better)
+            if 'silhouette' in row and pd.notna(row['silhouette']):
+                # Silhouette is already in [-1, 1], shift to [0, 1]
+                normalized = (row['silhouette'] + 1) / 2
+                score += normalized * 0.4
+                weight_sum += 0.4
+
+            # Calinski-Harabasz (higher is better)
+            if 'calinski_harabasz' in row and pd.notna(row['calinski_harabasz']):
+                # Normalize by max value
+                max_ch = valid_df['calinski_harabasz'].max()
+                if max_ch > 0:
+                    normalized = row['calinski_harabasz'] / max_ch
+                    score += normalized * 0.3
+                    weight_sum += 0.3
+
+            # Davies-Bouldin (lower is better)
+            if 'davies_bouldin' in row and pd.notna(row['davies_bouldin']):
+                # Invert and normalize
+                max_db = valid_df['davies_bouldin'].max()
+                min_db = valid_df['davies_bouldin'].min()
+                if max_db > min_db:
+                    normalized = 1 - (row['davies_bouldin'] - min_db) / (max_db - min_db)
+                    score += normalized * 0.3
+                    weight_sum += 0.3
+
+            # Average score
+            if weight_sum > 0:
+                scores[algo] = score / weight_sum
+            else:
+                scores[algo] = 0.0
+
+        # Select best
+        best_algo = max(scores, key=scores.get)
+        best_row = valid_df[valid_df['algorithm'] == best_algo].iloc[0]
+        best_k = int(best_row['n_clusters'])
+        best_score = float(best_row.get('silhouette', 0))
+
+        return best_algo, best_k, best_score
+
+    def plot_algorithm_comparison(
+        self,
+        comparison_results: Dict[str, Any],
+        title: Optional[str] = None,
+        figsize: tuple = (14, 6)
+    ):
+        """
+        Visualize algorithm comparison results.
+
+        Parameters
+        ----------
+        comparison_results : dict
+            Results from compare_algorithms() method
+
+        title : str, optional
+            Plot title
+
+        figsize : tuple, default=(14, 6)
+            Figure size
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            Figure object
+
+        Examples
+        --------
+        >>> results = pipeline.compare_algorithms(df, feature_columns=features)
+        >>> pipeline.plot_algorithm_comparison(results)
+        """
+        from clustertk.visualization import check_viz_available, plot_algorithm_comparison
+
+        if not check_viz_available():
+            raise ImportError(
+                "Visualization dependencies not installed. "
+                "Install with: pip install clustertk[viz]"
+            )
+
+        return plot_algorithm_comparison(
+            comparison_results['comparison'],
+            title=title,
+            figsize=figsize
+        )
+
     def __repr__(self) -> str:
         """String representation of the pipeline."""
         return (
