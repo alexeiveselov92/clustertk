@@ -16,6 +16,8 @@ try:
 except ImportError:
     VISUALIZATION_AVAILABLE = False
 
+from ._utils import _prepare_figure_return
+
 
 def _check_viz_available():
     """Check if visualization dependencies are installed."""
@@ -128,8 +130,7 @@ def plot_correlation_matrix(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_correlation_network(
@@ -262,8 +263,7 @@ def plot_correlation_network(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_feature_distributions(
@@ -348,5 +348,4 @@ def plot_feature_distributions(
     fig.suptitle('Feature Distributions', fontsize=14, fontweight='bold')
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)

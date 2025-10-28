@@ -16,6 +16,8 @@ try:
 except ImportError:
     VISUALIZATION_AVAILABLE = False
 
+from ._utils import _prepare_figure_return
+
 
 def _check_viz_available():
     """Check if visualization dependencies are installed."""
@@ -209,8 +211,7 @@ def plot_clusters_2d(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_cluster_sizes(
@@ -293,5 +294,4 @@ def plot_cluster_sizes(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)

@@ -16,6 +16,8 @@ try:
 except ImportError:
     VISUALIZATION_AVAILABLE = False
 
+from ._utils import _prepare_figure_return
+
 
 def _check_viz_available():
     """Check if visualization dependencies are installed."""
@@ -129,8 +131,7 @@ def plot_pca_variance(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_pca_loadings(
@@ -211,8 +212,7 @@ def plot_pca_loadings(
     fig.suptitle(title or 'PCA Component Loadings', fontsize=14, fontweight='bold')
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_elbow(
@@ -287,5 +287,4 @@ def plot_elbow(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
