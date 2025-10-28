@@ -1467,7 +1467,9 @@ class ClusterAnalysisPipeline:
         self,
         path: str,
         format: str = 'csv',
-        include_original: bool = True
+        include_original: bool = True,
+        include_profiles: bool = True,
+        include_metrics: bool = True
     ) -> None:
         """
         Export clustering results to file.
@@ -1478,16 +1480,435 @@ class ClusterAnalysisPipeline:
             Output file path.
 
         format : str, default='csv'
-            Output format: 'csv', 'json', 'pickle'.
+            Output format: 'csv' or 'json'.
 
         include_original : bool, default=True
-            Whether to include original data in export.
-        """
-        # TODO: Implement export logic
-        if self.verbose:
-            print(f"\nExporting results to {path}...")
+            Whether to include original data columns in CSV export.
 
-        warnings.warn("Export functionality not yet implemented", UserWarning)
+        include_profiles : bool, default=True
+            Whether to include cluster profiles in JSON export.
+
+        include_metrics : bool, default=True
+            Whether to include clustering metrics in JSON export.
+
+        Examples
+        --------
+        >>> pipeline.export_results('results.csv', format='csv')
+        >>> pipeline.export_results('results.json', format='json')
+        """
+        if self.labels_ is None:
+            raise ValueError("No clustering results available. Run fit() or cluster() first.")
+
+        if self.verbose:
+            print(f"\nExporting results to {path} (format: {format})...")
+
+        if format == 'csv':
+            self._export_csv(path, include_original)
+        elif format == 'json':
+            self._export_json(path, include_profiles, include_metrics)
+        else:
+            raise ValueError(f"Unsupported format '{format}'. Use 'csv' or 'json'.")
+
+        if self.verbose:
+            print(f"  ✓ Results exported successfully")
+
+    def _export_csv(self, path: str, include_original: bool = True) -> None:
+        """Export results to CSV file."""
+        # Create results dataframe
+        if include_original and self.data_ is not None:
+            # Include original data
+            results_df = self.data_.copy()
+        else:
+            # Just create index
+            results_df = pd.DataFrame(index=range(len(self.labels_)))
+
+        # Add cluster labels
+        results_df['cluster'] = self.labels_
+
+        # Add cluster names if available
+        if self.cluster_names_ is not None:
+            results_df['cluster_name'] = results_df['cluster'].map(self.cluster_names_)
+
+        # Save to CSV
+        results_df.to_csv(path, index=False)
+
+        if self.verbose:
+            print(f"    Exported {len(results_df)} samples with {len(results_df.columns)} columns")
+
+    def _export_json(
+        self,
+        path: str,
+        include_profiles: bool = True,
+        include_metrics: bool = True
+    ) -> None:
+        """Export results to JSON file."""
+        import json
+
+        # Build export data
+        export_data: Dict[str, Any] = {
+            'n_clusters': int(self.n_clusters_),
+            'n_samples': int(len(self.labels_)),
+            'algorithm': str(self.clustering_algorithm),
+        }
+
+        # Add cluster labels
+        export_data['labels'] = self.labels_.tolist()
+
+        # Add cluster names if available
+        if self.cluster_names_ is not None:
+            export_data['cluster_names'] = self.cluster_names_
+
+        # Add cluster sizes
+        cluster_sizes = pd.Series(self.labels_).value_counts().sort_index()
+        export_data['cluster_sizes'] = cluster_sizes.to_dict()
+
+        # Add profiles if requested
+        if include_profiles and self.cluster_profiles_ is not None:
+            # Convert profiles to dict
+            profiles_dict = {}
+            for cluster_id in self.cluster_profiles_.index:
+                profiles_dict[int(cluster_id)] = self.cluster_profiles_.loc[cluster_id].to_dict()
+            export_data['cluster_profiles'] = profiles_dict
+
+        # Add metrics if requested
+        if include_metrics and self.metrics_ is not None:
+            export_data['metrics'] = self.metrics_
+
+        # Add pipeline configuration
+        export_data['config'] = {
+            'handle_missing': str(self.handle_missing),
+            'handle_outliers': str(self.handle_outliers),
+            'scaling': str(self.scaling),
+            'correlation_threshold': float(self.correlation_threshold),
+            'variance_threshold': float(self.variance_threshold),
+            'pca_variance': float(self.pca_variance),
+            'n_clusters_range': self.n_clusters_range,
+            'random_state': int(self.random_state),
+        }
+
+        # Add feature information
+        if self.selected_features_ is not None:
+            export_data['selected_features'] = self.selected_features_
+
+        # Save to JSON
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+        if self.verbose:
+            print(f"    Exported {self.n_clusters_} clusters with detailed metadata")
+
+    def export_report(
+        self,
+        path: str,
+        include_plots: bool = True,
+        plot_format: str = 'png'
+    ) -> None:
+        """
+        Generate and export an HTML report with clustering results.
+
+        This method creates a comprehensive HTML report including:
+        - Clustering summary and metrics
+        - Cluster profiles table
+        - Embedded visualizations (if include_plots=True)
+        - Pipeline configuration details
+
+        Parameters
+        ----------
+        path : str
+            Output HTML file path.
+
+        include_plots : bool, default=True
+            Whether to include embedded plots.
+            Requires visualization dependencies (pip install clustertk[viz]).
+
+        plot_format : str, default='png'
+            Format for embedded plots: 'png' or 'svg'.
+
+        Examples
+        --------
+        >>> pipeline.export_report('report.html')
+        >>> pipeline.export_report('report.html', include_plots=False)
+        """
+        if self.labels_ is None:
+            raise ValueError("No clustering results available. Run fit() or cluster() first.")
+
+        if self.cluster_profiles_ is None:
+            raise ValueError("No cluster profiles available. Run fit() or create_profiles() first.")
+
+        if self.verbose:
+            print(f"\nGenerating HTML report: {path}...")
+
+        # Build HTML report
+        html = self._build_html_report(include_plots, plot_format)
+
+        # Save to file
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+        if self.verbose:
+            print(f"  ✓ Report generated successfully")
+
+    def _build_html_report(self, include_plots: bool, plot_format: str) -> str:
+        """Build HTML report content."""
+        import base64
+        from io import BytesIO
+        from datetime import datetime
+
+        # HTML header and CSS
+        html_parts = [
+            '<!DOCTYPE html>',
+            '<html lang="en">',
+            '<head>',
+            '<meta charset="UTF-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+            '<title>ClusterTK Analysis Report</title>',
+            '<style>',
+            'body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }',
+            'h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }',
+            'h2 { color: #34495e; margin-top: 30px; border-bottom: 2px solid #95a5a6; padding-bottom: 5px; }',
+            'h3 { color: #7f8c8d; }',
+            '.container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }',
+            '.summary { background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }',
+            '.metric { display: inline-block; margin: 10px 20px 10px 0; }',
+            '.metric-label { font-weight: bold; color: #7f8c8d; }',
+            '.metric-value { font-size: 1.2em; color: #2c3e50; }',
+            'table { border-collapse: collapse; width: 100%; margin: 20px 0; }',
+            'th { background-color: #3498db; color: white; padding: 12px; text-align: left; }',
+            'td { padding: 10px; border-bottom: 1px solid #ddd; }',
+            'tr:hover { background-color: #f5f5f5; }',
+            '.plot-container { margin: 30px 0; text-align: center; }',
+            '.plot-container img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px; }',
+            '.config { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #3498db; margin: 20px 0; }',
+            '.config-item { margin: 5px 0; }',
+            '.timestamp { color: #95a5a6; font-size: 0.9em; }',
+            '</style>',
+            '</head>',
+            '<body>',
+            '<div class="container">',
+        ]
+
+        # Title
+        html_parts.append('<h1>ClusterTK Analysis Report</h1>')
+        html_parts.append(f'<p class="timestamp">Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>')
+
+        # Summary section
+        html_parts.append('<h2>Clustering Summary</h2>')
+        html_parts.append('<div class="summary">')
+
+        html_parts.append(f'<div class="metric"><span class="metric-label">Algorithm:</span> <span class="metric-value">{self.clustering_algorithm}</span></div>')
+        html_parts.append(f'<div class="metric"><span class="metric-label">Number of Clusters:</span> <span class="metric-value">{self.n_clusters_}</span></div>')
+        html_parts.append(f'<div class="metric"><span class="metric-label">Total Samples:</span> <span class="metric-value">{len(self.labels_)}</span></div>')
+
+        if self.metrics_:
+            if 'silhouette' in self.metrics_:
+                html_parts.append(f'<div class="metric"><span class="metric-label">Silhouette Score:</span> <span class="metric-value">{self.metrics_["silhouette"]:.3f}</span></div>')
+            if 'calinski_harabasz' in self.metrics_:
+                html_parts.append(f'<div class="metric"><span class="metric-label">Calinski-Harabasz:</span> <span class="metric-value">{self.metrics_["calinski_harabasz"]:.1f}</span></div>')
+            if 'davies_bouldin' in self.metrics_:
+                html_parts.append(f'<div class="metric"><span class="metric-label">Davies-Bouldin:</span> <span class="metric-value">{self.metrics_["davies_bouldin"]:.3f}</span></div>')
+
+        html_parts.append('</div>')
+
+        # Cluster sizes
+        html_parts.append('<h3>Cluster Sizes</h3>')
+        cluster_sizes = pd.Series(self.labels_).value_counts().sort_index()
+        html_parts.append('<table>')
+        html_parts.append('<tr><th>Cluster</th><th>Name</th><th>Size</th><th>Percentage</th></tr>')
+
+        for cluster_id, size in cluster_sizes.items():
+            pct = size / len(self.labels_) * 100
+            name = self.cluster_names_.get(cluster_id, '-') if self.cluster_names_ else '-'
+            html_parts.append(f'<tr><td>{cluster_id}</td><td>{name}</td><td>{size}</td><td>{pct:.1f}%</td></tr>')
+
+        html_parts.append('</table>')
+
+        # Cluster profiles
+        html_parts.append('<h2>Cluster Profiles</h2>')
+        html_parts.append('<table>')
+
+        # Table header
+        header_row = '<tr><th>Cluster</th>'
+        for feature in self.cluster_profiles_.columns:
+            header_row += f'<th>{feature}</th>'
+        header_row += '</tr>'
+        html_parts.append(header_row)
+
+        # Table rows
+        for cluster_id in sorted(self.cluster_profiles_.index):
+            row = f'<tr><td><strong>{cluster_id}</strong></td>'
+            for feature in self.cluster_profiles_.columns:
+                value = self.cluster_profiles_.loc[cluster_id, feature]
+                row += f'<td>{value:.3f}</td>'
+            row += '</tr>'
+            html_parts.append(row)
+
+        html_parts.append('</table>')
+
+        # Add plots if requested
+        if include_plots:
+            try:
+                from clustertk.visualization import check_viz_available
+                if check_viz_available():
+                    html_parts.append('<h2>Visualizations</h2>')
+
+                    # Generate and embed plots
+                    plots_to_generate = [
+                        ('plot_clusters_2d', {}, 'Cluster Visualization (2D)'),
+                        ('plot_cluster_heatmap', {}, 'Cluster Profiles Heatmap'),
+                        ('plot_cluster_sizes', {}, 'Cluster Size Distribution'),
+                    ]
+
+                    for plot_method, kwargs, title in plots_to_generate:
+                        try:
+                            fig = getattr(self, plot_method)(**kwargs)
+
+                            # Convert plot to base64
+                            buffer = BytesIO()
+                            fig.savefig(buffer, format=plot_format, bbox_inches='tight', dpi=100)
+                            buffer.seek(0)
+                            img_base64 = base64.b64encode(buffer.read()).decode()
+                            buffer.close()
+
+                            # Embed in HTML
+                            html_parts.append('<div class="plot-container">')
+                            html_parts.append(f'<h3>{title}</h3>')
+                            html_parts.append(f'<img src="data:image/{plot_format};base64,{img_base64}" alt="{title}">')
+                            html_parts.append('</div>')
+
+                        except Exception as e:
+                            if self.verbose:
+                                print(f"    Warning: Could not generate {plot_method}: {e}")
+
+                else:
+                    html_parts.append('<p><em>Visualization dependencies not installed. Install with: pip install clustertk[viz]</em></p>')
+
+            except Exception as e:
+                html_parts.append(f'<p><em>Could not generate plots: {e}</em></p>')
+
+        # Pipeline configuration
+        html_parts.append('<h2>Pipeline Configuration</h2>')
+        html_parts.append('<div class="config">')
+
+        config_items = [
+            ('Missing Value Strategy', self.handle_missing),
+            ('Outlier Handling', self.handle_outliers),
+            ('Scaling Method', self.scaling),
+            ('Correlation Threshold', self.correlation_threshold),
+            ('Variance Threshold', self.variance_threshold),
+            ('PCA Variance', self.pca_variance),
+            ('Cluster Range', self.n_clusters_range),
+            ('Random State', self.random_state),
+        ]
+
+        for label, value in config_items:
+            html_parts.append(f'<div class="config-item"><strong>{label}:</strong> {value}</div>')
+
+        if self.selected_features_:
+            html_parts.append(f'<div class="config-item"><strong>Selected Features:</strong> {len(self.selected_features_)} features</div>')
+
+        html_parts.append('</div>')
+
+        # Footer
+        html_parts.append('<hr>')
+        html_parts.append('<p style="text-align: center; color: #95a5a6;">Generated with <strong>ClusterTK</strong></p>')
+        html_parts.append('</div>')
+        html_parts.append('</body>')
+        html_parts.append('</html>')
+
+        return '\n'.join(html_parts)
+
+    def save_pipeline(self, path: str, method: str = 'joblib') -> None:
+        """
+        Save the fitted pipeline to disk.
+
+        Parameters
+        ----------
+        path : str
+            Path where to save the pipeline.
+
+        method : str, default='joblib'
+            Serialization method: 'joblib' or 'pickle'.
+            joblib is recommended for scikit-learn models.
+
+        Examples
+        --------
+        >>> pipeline.save_pipeline('my_pipeline.pkl')
+        >>> pipeline.save_pipeline('my_pipeline.joblib', method='joblib')
+        """
+        if self.labels_ is None:
+            warnings.warn(
+                "Pipeline has not been fitted yet. Saving unfitted pipeline.",
+                UserWarning
+            )
+
+        if self.verbose:
+            print(f"\nSaving pipeline to {path} (method: {method})...")
+
+        if method == 'joblib':
+            try:
+                import joblib
+                joblib.dump(self, path, compress=3)
+            except ImportError:
+                raise ImportError(
+                    "joblib is not installed. Install with: pip install joblib\n"
+                    "Or use method='pickle' instead."
+                )
+        elif method == 'pickle':
+            import pickle
+            with open(path, 'wb') as f:
+                pickle.dump(self, f)
+        else:
+            raise ValueError(f"Unknown method '{method}'. Use 'joblib' or 'pickle'.")
+
+        if self.verbose:
+            print(f"  ✓ Pipeline saved successfully")
+
+    @staticmethod
+    def load_pipeline(path: str, method: str = 'joblib') -> 'ClusterAnalysisPipeline':
+        """
+        Load a saved pipeline from disk.
+
+        Parameters
+        ----------
+        path : str
+            Path to the saved pipeline file.
+
+        method : str, default='joblib'
+            Serialization method used when saving: 'joblib' or 'pickle'.
+
+        Returns
+        -------
+        pipeline : ClusterAnalysisPipeline
+            Loaded pipeline instance.
+
+        Examples
+        --------
+        >>> pipeline = ClusterAnalysisPipeline.load_pipeline('my_pipeline.pkl')
+        >>> pipeline = ClusterAnalysisPipeline.load_pipeline('my_pipeline.joblib', method='joblib')
+        """
+        if method == 'joblib':
+            try:
+                import joblib
+                pipeline = joblib.load(path)
+            except ImportError:
+                raise ImportError(
+                    "joblib is not installed. Install with: pip install joblib\n"
+                    "Or use method='pickle' instead."
+                )
+        elif method == 'pickle':
+            import pickle
+            with open(path, 'rb') as f:
+                pipeline = pickle.load(f)
+        else:
+            raise ValueError(f"Unknown method '{method}'. Use 'joblib' or 'pickle'.")
+
+        if not isinstance(pipeline, ClusterAnalysisPipeline):
+            raise ValueError(
+                f"Loaded object is not a ClusterAnalysisPipeline instance. "
+                f"Got {type(pipeline).__name__}"
+            )
+
+        return pipeline
 
     def __repr__(self) -> str:
         """String representation of the pipeline."""

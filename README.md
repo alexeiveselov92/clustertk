@@ -51,7 +51,8 @@ ClusterTK is a Python library designed to streamline the entire cluster analysis
 - 📈 **Rich Evaluation**: Comprehensive metrics (Silhouette, Calinski-Harabasz, Davies-Bouldin)
 - 🎨 **Optional Visualization**: Beautiful plots without mandatory heavy dependencies
 - 🔍 **Cluster Interpretation**: Automatic profiling and naming suggestions
-- 📝 **Export Results**: CSV, JSON, HTML reports
+- 📁 **Export & Reports**: CSV, JSON exports, HTML reports with embedded plots
+- 💾 **Save/Load**: Serialize and reload fitted pipelines
 
 ## Installation
 
@@ -107,6 +108,11 @@ pipeline.fit(df, feature_columns=['col1', 'col2', 'col3'])
 labels = pipeline.labels_                    # Cluster assignments
 profiles = pipeline.cluster_profiles_        # Cluster profiles
 metrics = pipeline.metrics_                  # Quality metrics
+
+# Export results
+pipeline.export_results('results.csv')       # CSV with data + labels
+pipeline.export_results('results.json', format='json')  # JSON with metadata
+pipeline.export_report('report.html')        # HTML report with plots
 
 # Visualize (if viz dependencies installed)
 # Note: In Jupyter, use display() for multiple plots in one cell
@@ -279,15 +285,79 @@ fig.savefig('heatmap.png')
 
 ## Export Results
 
+ClusterTK provides multiple ways to export your clustering results:
+
+### Export to CSV
+
+Export cluster assignments along with original data:
+
 ```python
-# Export cluster labels to CSV
+# Export with original data
 pipeline.export_results('results.csv', format='csv')
 
-# Export profiles to JSON
-pipeline.export_results('profiles.json', format='json')
+# Export only cluster assignments
+pipeline.export_results('results.csv', format='csv', include_original=False)
+```
 
-# Generate HTML report (requires viz dependencies)
+The CSV will include:
+- All original data columns (if `include_original=True`)
+- `cluster` column with cluster assignments
+- `cluster_name` column (if cluster naming was performed)
+
+### Export to JSON
+
+Export comprehensive clustering metadata:
+
+```python
+# Full export with profiles and metrics
+pipeline.export_results('results.json', format='json')
+
+# Export without profiles
+pipeline.export_results('results.json', format='json', include_profiles=False)
+```
+
+The JSON will include:
+- Cluster labels and sizes
+- Cluster names (if available)
+- Cluster profiles (mean feature values per cluster)
+- Clustering metrics (silhouette, calinski-harabasz, etc.)
+- Pipeline configuration
+- Selected features list
+
+### Generate HTML Report
+
+Create a comprehensive HTML report with visualizations:
+
+```python
+# Full report with embedded plots
 pipeline.export_report('report.html')
+
+# Report without plots (faster, no viz dependencies needed)
+pipeline.export_report('report.html', include_plots=False)
+```
+
+The HTML report includes:
+- Clustering summary and metrics
+- Cluster sizes table
+- Cluster profiles heatmap table
+- Embedded visualizations (if `include_plots=True`)
+- Pipeline configuration details
+
+### Save and Load Pipeline
+
+Save your fitted pipeline for later use:
+
+```python
+# Save pipeline
+pipeline.save_pipeline('my_pipeline.joblib')
+
+# Load pipeline
+from clustertk import ClusterAnalysisPipeline
+loaded_pipeline = ClusterAnalysisPipeline.load_pipeline('my_pipeline.joblib')
+
+# Use loaded pipeline
+new_labels = loaded_pipeline.labels_
+new_profiles = loaded_pipeline.cluster_profiles_
 ```
 
 ## Advanced Usage

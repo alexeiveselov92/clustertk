@@ -13,6 +13,7 @@ install_requires = [
     'pandas>=1.3.0',
     'scikit-learn>=1.0.0',
     'scipy>=1.7.0',
+    'joblib>=1.0.0',  # For pipeline serialization
 ]
 
 # Optional dependencies for visualization
@@ -40,7 +41,7 @@ dev_requires = [
 
 setup(
     name='clustertk',
-    version='0.4.2',
+    version='0.5.0',
     author='Aleksey Veselov',
     author_email='alexei.veselov92@gmail.com',
     description='A comprehensive toolkit for cluster analysis with full pipeline support',
