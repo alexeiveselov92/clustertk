@@ -11,7 +11,7 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.7.0
+- **Latest Version:** v0.8.0
 
 ### ✅ Полностью реализовано:
 
@@ -29,12 +29,13 @@ ClusterTK - это Python библиотека для полного пайпл�
    - PCAReducer - PCA с автоподбором компонент по variance threshold
    - ManifoldReducer - t-SNE/UMAP для визуализации (только для viz, не для кластеризации!)
 
-4. **Clustering** - полностью готово (v0.2.0)
+4. **Clustering** - полностью готово (v0.2.0, v0.8.0)
    - BaseClusterer - базовый класс для всех алгоритмов
    - KMeansClustering - K-Means алгоритм
    - GMMClustering - Gaussian Mixture Model
    - HierarchicalClustering - иерархическая кластеризация (Ward, Complete, Average)
    - DBSCANClustering - DBSCAN с автоподбором eps и min_samples
+   - HDBSCANClustering - HDBSCAN с автоподбором min_cluster_size (v0.8.0)
 
 5. **Evaluation** - полностью готово (v0.1.0)
    - compute_clustering_metrics - Silhouette, Calinski-Harabasz, Davies-Bouldin
@@ -62,29 +63,28 @@ ClusterTK - это Python библиотека для полного пайпл�
 
 10. **Algorithm Comparison** - полностью готово (v0.7.0)
    - `compare_algorithms()` метод для автоматического сравнения алгоритмов
-   - Тестирование KMeans, GMM, Hierarchical, DBSCAN на разных k
+   - Тестирование KMeans, GMM, Hierarchical, DBSCAN, HDBSCAN на разных k
    - Weighted scoring system (40% Silhouette, 30% Calinski-Harabasz, 30% Davies-Bouldin)
    - `plot_algorithm_comparison()` визуализация сравнения
    - Автоматическая рекомендация лучшего алгоритма
    - Полная документация и примеры
 
-10. **Algorithm Comparison** - полностью готово (v0.7.0)
-   - `compare_algorithms()` метод для автоматического сравнения алгоритмов
-   - Тестирование KMeans, GMM, Hierarchical, DBSCAN на разных k
-   - Weighted scoring system (40% Silhouette, 30% Calinski-Harabasz, 30% Davies-Bouldin)
-   - `plot_algorithm_comparison()` визуализация сравнения
-   - Автоматическая рекомендация лучшего алгоритма
-   - Полная документация и примеры
+11. **Test Suite** - полностью готово (v0.8.0)
+   - pytest infrastructure с pytest.ini конфигурацией
+   - 39 unit и integration тестов
+   - Coverage 39% (clustering 66-76%, preprocessing 61-69%)
+   - Fixtures для различных сценариев данных
+   - Тесты для preprocessing, clustering, evaluation, pipeline
 
 ### ⚠️ TODO (для будущих версий):
 
-**v0.8.0 (приоритет HIGH):**
-- **Tests** - базовые unit tests для критичных модулей (покрытие >50%)
-- **Enhanced Feature Analysis** - SHAP values, permutation importance
-- **More Clustering Algorithms** - HDBSCAN, Spectral Clustering
+**v0.9.0 (приоритет HIGH):**
+- **Enhanced Coverage** - увеличить покрытие тестами до >50%
+- **CI/CD** - GitHub Actions для автоматического тестирования
 
-**v0.9.0+ (приоритет MEDIUM/LOW):**
-- **CI/CD** - GitHub Actions
+**v0.10.0+ (приоритет MEDIUM/LOW):**
+- **Enhanced Feature Analysis** - SHAP values, permutation importance
+- **More Clustering Algorithms** - Spectral Clustering, OPTICS
 - **Sphinx** - полная API документация
 - **GitHub Pages** - хостинг документации
 
@@ -225,6 +225,7 @@ OptimalKFinder использует голосование трех метрик
 - **v0.5.0** - добавлены export_results(), export_report(), save_pipeline(), load_pipeline()
 - **v0.6.0** - создана docs/ структура, сокращен README, полная документация
 - **v0.7.0** - добавлен compare_algorithms() для автоматического сравнения алгоритмов
+- **v0.8.0** - добавлены HDBSCAN алгоритм и полный Test Suite (39 тестов, 39% coverage)
 
 ## Контакты автора
 
