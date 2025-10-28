@@ -76,7 +76,43 @@
 
 ### HIGH PRIORITY (Must-have для v0.8.0)
 
-### MEDIUM PRIORITY (Желательно для v0.6.0)
+1. **Tests** 🔥
+   - [ ] Unit tests для preprocessing модулей (missing, outliers, scaling, transforms)
+   - [ ] Unit tests для clustering алгоритмов (kmeans, gmm, hierarchical, dbscan)
+   - [ ] Unit tests для evaluation (metrics, optimal_k)
+   - [ ] Integration tests для Pipeline (fit, transform, full workflow)
+   - [ ] Tests для compare_algorithms() (v0.7.0 feature)
+   - [ ] Tests для export/report функционала
+   - [ ] Цель: покрытие >50%
+   - **Обоснование:** Библиотека растёт, нужна стабильность и защита от регрессий.
+
+2. **HDBSCAN Algorithm** 🔥
+   - [ ] Реализация HDBSCANClustering класса
+   - [ ] Автоподбор параметров (min_cluster_size, min_samples)
+   - [ ] Интеграция в Pipeline
+   - [ ] Добавление в compare_algorithms()
+   - [ ] Документация и примеры
+   - **Обоснование:** Один из самых популярных алгоритмов, часто запрашивается сообществом.
+
+1. **Tests** 🔥
+   - [ ] Unit tests для preprocessing модулей (missing, outliers, scaling, transforms)
+   - [ ] Unit tests для clustering алгоритмов (kmeans, gmm, hierarchical, dbscan)
+   - [ ] Unit tests для evaluation (metrics, optimal_k)
+   - [ ] Integration tests для Pipeline (fit, transform, full workflow)
+   - [ ] Tests для compare_algorithms() (v0.7.0 feature)
+   - [ ] Tests для export/report функционала
+   - [ ] Цель: покрытие >50%
+   - **Обоснование:** Библиотека растёт, нужна стабильность и защита от регрессий.
+
+2. **HDBSCAN Algorithm** 🔥
+   - [ ] Реализация HDBSCANClustering класса
+   - [ ] Автоподбор параметров (min_cluster_size, min_samples)
+   - [ ] Интеграция в Pipeline
+   - [ ] Добавление в compare_algorithms()
+   - [ ] Документация и примеры
+   - **Обоснование:** Один из самых популярных алгоритмов, часто запрашивается сообществом.
+
+### MEDIUM PRIORITY (Желательно для v0.8.0)
 
 3. **Enhanced Feature Analysis**
    - [ ] Расширенный feature importance (не только top features)

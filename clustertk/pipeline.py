@@ -540,11 +540,12 @@ class ClusterAnalysisPipeline:
         from clustertk.evaluation import OptimalKFinder
         from clustertk.clustering import KMeansClustering, GMMClustering, HierarchicalClustering
 
-        # Skip for DBSCAN
-        if isinstance(self.clustering_algorithm, str) and self.clustering_algorithm == 'dbscan':
+        # Skip for DBSCAN and HDBSCAN
+        if isinstance(self.clustering_algorithm, str) and self.clustering_algorithm in ['dbscan', 'hdbscan']:
             if self.verbose:
                 print("\nStep 4/6: Finding optimal number of clusters...")
-                print("  Skipping for DBSCAN (density-based clustering)")
+                algo_name = self.clustering_algorithm.upper()
+                print(f"  Skipping for {algo_name} (density-based clustering)")
                 print("  ✓ Optimal cluster finding completed")
             return self
 
@@ -613,7 +614,8 @@ class ClusterAnalysisPipeline:
             KMeansClustering,
             GMMClustering,
             HierarchicalClustering,
-            DBSCANClustering
+            DBSCANClustering,
+            HDBSCANClustering
         )
         from clustertk.evaluation import compute_clustering_metrics
 
@@ -623,8 +625,8 @@ class ClusterAnalysisPipeline:
         # Determine algorithm
         algo = algorithm or self.clustering_algorithm
 
-        # Determine number of clusters (not used for DBSCAN)
-        if isinstance(algo, str) and algo != 'dbscan':
+        # Determine number of clusters (not used for DBSCAN/HDBSCAN)
+        if isinstance(algo, str) and algo not in ['dbscan', 'hdbscan']:
             if n_clusters is not None:
                 self.n_clusters_ = n_clusters
             elif self.n_clusters_ is None:
@@ -658,10 +660,15 @@ class ClusterAnalysisPipeline:
                     eps='auto',  # Auto-estimate eps
                     min_samples='auto'  # Auto-estimate min_samples
                 )
+            elif algo == 'hdbscan':
+                self._clusterer = HDBSCANClustering(
+                    min_cluster_size='auto',  # Auto-estimate min_cluster_size
+                    min_samples='auto'  # Auto-estimate min_samples
+                )
             else:
                 raise ValueError(
                     f"Unknown algorithm '{algo}'. "
-                    f"Use 'kmeans', 'gmm', 'hierarchical', or 'dbscan'."
+                    f"Use 'kmeans', 'gmm', 'hierarchical', 'dbscan', or 'hdbscan'."
                 )
         else:
             # Custom clusterer provided
@@ -1935,8 +1942,8 @@ class ClusterAnalysisPipeline:
             Column names to use as features. If None, uses all numeric columns.
 
         algorithms : list of str, optional
-            Algorithms to compare. Default: ['kmeans', 'gmm', 'hierarchical', 'dbscan']
-            Available: 'kmeans', 'gmm', 'hierarchical', 'dbscan'.
+            Algorithms to compare. Default: ['kmeans', 'gmm', 'hierarchical', 'dbscan', 'hdbscan']
+            Available: 'kmeans', 'gmm', 'hierarchical', 'dbscan', 'hdbscan'.
 
         n_clusters_range : tuple, optional
             Range of cluster numbers to try (min, max) for algorithms that need k.
@@ -1989,7 +1996,7 @@ class ClusterAnalysisPipeline:
 
         # Set defaults
         if algorithms is None:
-            algorithms = ['kmeans', 'gmm', 'hierarchical', 'dbscan']
+            algorithms = ['kmeans', 'gmm', 'hierarchical', 'dbscan', 'hdbscan']
 
         if n_clusters_range is None:
             n_clusters_range = self.n_clusters_range if hasattr(self, 'n_clusters_range') else (2, 8)

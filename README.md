@@ -102,6 +102,8 @@ Each step is configurable through pipeline parameters or can be run independentl
 - **GMM** - Probabilistic, elliptical clusters
 - **Hierarchical** - Dendrograms, hierarchical structure
 - **DBSCAN** - Density-based, arbitrary shapes
+- **HDBSCAN** - Advanced density-based, varying densities (v0.8.0+)
+- **HDBSCAN** - Advanced density-based, varying densities (v0.8.0+)
 
 ### Evaluation
 - Silhouette score

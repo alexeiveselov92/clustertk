@@ -6,6 +6,7 @@ This module provides wrapper classes for various clustering algorithms:
 - Gaussian Mixture Model
 - Hierarchical Clustering
 - DBSCAN
+- HDBSCAN
 """
 
 from clustertk.clustering.base import BaseClusterer
@@ -13,6 +14,7 @@ from clustertk.clustering.kmeans import KMeansClustering
 from clustertk.clustering.gmm import GMMClustering
 from clustertk.clustering.hierarchical import HierarchicalClustering
 from clustertk.clustering.dbscan import DBSCANClustering
+from clustertk.clustering.hdbscan import HDBSCANClustering
 
 __all__ = [
     'BaseClusterer',
@@ -20,4 +22,5 @@ __all__ = [
     'GMMClustering',
     'HierarchicalClustering',
     'DBSCANClustering',
+    'HDBSCANClustering',
 ]

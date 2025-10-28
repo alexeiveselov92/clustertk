@@ -9,6 +9,7 @@ Available algorithms:
 - **GMM** (Gaussian Mixture Model): Probabilistic, handles elliptical clusters
 - **Hierarchical**: Creates dendrograms, no need to specify k
 - **DBSCAN**: Density-based, finds arbitrary shapes and noise
+- **HDBSCAN** (v0.8.0+): Advanced density-based, handles varying densities
 
 ## K-Means Clustering
 
@@ -118,6 +119,74 @@ print(f"Noise points: {noise_count}")
 - Struggles with varying density clusters
 - Sensitive to parameters
 - Slower on large datasets
+
+
+## HDBSCAN (v0.8.0+)
+
+Best for: Varying density clusters, automatic cluster detection, outlier identification.
+
+HDBSCAN (Hierarchical DBSCAN) is an advanced density-based algorithm that improves upon DBSCAN by building a cluster hierarchy and automatically selecting the most stable clusters.
+
+```python
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan'
+    # n_clusters not needed - auto-detected
+)
+
+pipeline.fit(df, feature_columns=features)
+
+# HDBSCAN provides cluster membership probabilities
+probs = pipeline.model_.probabilities_
+weak_members = probs < 0.5  # Points weakly assigned
+
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Weak cluster members: {weak_members.sum()}")
+```
+
+**Key Features:**
+- Handles clusters of varying densities
+- More robust to parameter choices than DBSCAN
+- Provides cluster membership probabilities
+- Automatic cluster stability assessment
+
+**Parameters:**
+- `min_cluster_size`: Minimum points for a cluster (auto: sqrt(n_samples))
+- `min_samples`: Minimum points in neighborhood (auto: equals min_cluster_size)
+
+**Pros:**
+- Handles varying density clusters (DBSCAN limitation)
+- Fewer parameters to tune
+- Provides cluster quality metrics (persistence)
+- More robust than DBSCAN
+
+**Cons:**
+- Requires hdbscan library: `pip install clustertk[extras]`
+- Slower than DBSCAN
+- More complex algorithm
+
+**When to use HDBSCAN vs DBSCAN:**
+- Use HDBSCAN when clusters have varying densities
+- Use DBSCAN when all clusters have similar density
+- HDBSCAN is generally more reliable but slower
+
+**Example with probability threshold:**
+
+```python
+from clustertk import ClusterAnalysisPipeline
+
+pipeline = ClusterAnalysisPipeline(clustering_algorithm='hdbscan')
+pipeline.fit(df, feature_columns=features)
+
+# Identify confident vs uncertain assignments
+probs = pipeline.model_.probabilities_
+confident = probs > 0.7  # High confidence
+uncertain = (probs > 0.3) & (probs <= 0.7)  # Medium confidence
+noise = probs <= 0.3  # Low confidence (likely noise)
+
+print(f"Confident: {confident.sum()} samples")
+print(f"Uncertain: {uncertain.sum()} samples")
+print(f"Noise: {noise.sum()} samples")
+```
 
 ## Automatic Algorithm Selection
 
