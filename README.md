@@ -220,10 +220,12 @@ pipeline.plot_cluster_heatmap()
 pipeline.plot_cluster_radar()
 ```
 
-**Note for Jupyter users:** To prevent automatic display duplication in Jupyter notebooks, add `;` at the end of plot commands:
+**Note for Jupyter users:** Starting from v0.3.4, plot duplication is automatically prevented in Jupyter notebooks. If you want to display a plot, simply reference the returned figure:
 
 ```python
-pipeline.plot_clusters_2d();  # Semicolon suppresses automatic display
+fig = pipeline.plot_cluster_heatmap()
+fig  # Display the figure in Jupyter
+# Or use: display(fig)
 ```
 
 ## Export Results

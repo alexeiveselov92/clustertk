@@ -16,6 +16,8 @@ try:
 except ImportError:
     VISUALIZATION_AVAILABLE = False
 
+from ._utils import _prepare_figure_return
+
 
 def _check_viz_available():
     """Check if visualization dependencies are installed."""
@@ -121,8 +123,7 @@ def plot_cluster_heatmap(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_cluster_radar(
@@ -231,8 +232,7 @@ def plot_cluster_radar(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
 
 
 def plot_feature_importance(
@@ -318,5 +318,4 @@ def plot_feature_importance(
 
     fig.tight_layout()
 
-
-    return fig
+    return _prepare_figure_return(fig)
