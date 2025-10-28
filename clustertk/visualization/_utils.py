@@ -28,24 +28,23 @@ def _is_jupyter() -> bool:
 
 def _prepare_figure_return(fig: plt.Figure) -> plt.Figure:
     """
-    Prepare figure for return to prevent duplicate display in Jupyter.
+    Return figure object for display.
 
-    In Jupyter notebooks, when a function returns a Figure object,
-    it gets automatically displayed. If the figure was already displayed
-    during creation (e.g., by seaborn functions), this causes duplication.
+    This function simply returns the figure object, allowing matplotlib's
+    standard display behavior in both Jupyter and regular Python environments.
 
-    This function closes the figure in Jupyter to prevent auto-display,
-    but the closed figure can still be displayed explicitly or saved.
+    In Jupyter: figure auto-displays if it's the last expression in a cell.
+    In scripts: use plt.show() or save the figure.
 
     Parameters
     ----------
     fig : plt.Figure
-        The matplotlib figure to prepare.
+        The matplotlib figure to return.
 
     Returns
     -------
     fig : plt.Figure
-        The same figure (possibly closed if in Jupyter).
+        The same figure object.
 
     Examples
     --------
@@ -54,9 +53,4 @@ def _prepare_figure_return(fig: plt.Figure) -> plt.Figure:
     ...     ax.plot([1, 2, 3])
     ...     return _prepare_figure_return(fig)
     """
-    if _is_jupyter():
-        # Close figure to prevent automatic display in Jupyter
-        # The figure can still be displayed with display(fig) or saved
-        plt.close(fig)
-
     return fig

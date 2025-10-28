@@ -220,13 +220,19 @@ pipeline.plot_cluster_heatmap()
 pipeline.plot_cluster_radar()
 ```
 
-**Note for Jupyter users:** Starting from v0.3.4, plot duplication is automatically prevented in Jupyter notebooks. If you want to display a plot, simply reference the returned figure:
+**Jupyter usage:** All plot functions return matplotlib Figure objects that auto-display in Jupyter notebooks.
 
+For multiple plots in one cell:
 ```python
-fig = pipeline.plot_cluster_heatmap()
-fig  # Display the figure in Jupyter
-# Or use: display(fig)
+from IPython.display import display
+
+# Display multiple plots in one cell
+display(pipeline.plot_cluster_heatmap())
+display(pipeline.plot_clusters_2d())
+display(pipeline.plot_cluster_radar())
 ```
+
+Or use separate cells for each plot (recommended for cleaner output).
 
 ## Export Results
 
