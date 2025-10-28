@@ -4,8 +4,43 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PyPI version](https://badge.fury.io/py/clustertk.svg)](https://pypi.org/project/clustertk/)
 
 ClusterTK is a Python library designed to streamline the entire cluster analysis workflow. It provides a unified, easy-to-use interface for data preprocessing, feature selection, dimensionality reduction, clustering, evaluation, and interpretation.
+
+## 📋 Quick Navigation
+
+- [Quick Start](#quick-start) ⭐ - Get started in 30 seconds
+- [Installation](#installation) - Install options
+- [Visualization](#visualization) - Plot examples
+- [Pipeline Components](#pipeline-components) - Detailed component reference
+- [Examples](./examples/) - Jupyter notebooks
+
+<details>
+<summary>📚 Table of Contents (click to expand)</summary>
+
+- [Features](#features)
+- [Installation](#installation)
+  - [Basic Installation](#basic-installation-core-functionality)
+  - [With Visualization Support](#with-visualization-support)
+  - [Full Installation](#full-installation-all-features)
+  - [Development Installation](#development-installation)
+- [Quick Start](#quick-start)
+- [Step-by-Step Usage](#step-by-step-usage)
+- [Pipeline Components](#pipeline-components)
+  - [1. Preprocessing](#1-preprocessing)
+  - [2. Feature Selection](#2-feature-selection)
+  - [3. Dimensionality Reduction](#3-dimensionality-reduction)
+  - [4. Clustering](#4-clustering)
+  - [5. Evaluation](#5-evaluation)
+  - [6. Interpretation](#6-interpretation)
+- [Visualization](#visualization)
+- [Export Results](#export-results)
+- [Advanced Usage](#advanced-usage)
+- [Contributing](#contributing)
+- [License](#license)
+
+</details>
 
 ## Features
 
@@ -115,6 +150,9 @@ pca_components = pipeline.data_reduced_
 
 ## Pipeline Components
 
+<details>
+<summary><b>🔍 Click to see detailed component documentation</b></summary>
+
 ### 1. Preprocessing
 
 - **Missing Values**: Median, mean, drop, or custom imputation
@@ -200,6 +238,8 @@ pipeline.create_profiles(category_mapping={
     'engagement': ['clicks', 'likes', 'comments']
 })
 ```
+
+</details>
 
 ## Visualization
 
