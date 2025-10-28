@@ -28,23 +28,26 @@ def _is_jupyter() -> bool:
 
 def _prepare_figure_return(fig: plt.Figure) -> plt.Figure:
     """
-    Return figure object for display.
+    Prepare figure for return to prevent duplicate display.
 
-    This function simply returns the figure object, allowing matplotlib's
-    standard display behavior in both Jupyter and regular Python environments.
+    When using plt.subplots(), the figure is registered in pyplot's global state.
+    In Jupyter, this causes the figure to auto-display. If we then return the figure,
+    Jupyter displays it again, resulting in duplication.
 
-    In Jupyter: figure auto-displays if it's the last expression in a cell.
-    In scripts: use plt.show() or save the figure.
+    Solution: plt.close(fig) removes the figure from pyplot's state, but the figure
+    object remains fully functional - it can still be displayed, saved, or manipulated.
+
+    This matches the behavior expected by users and prevents duplication.
 
     Parameters
     ----------
     fig : plt.Figure
-        The matplotlib figure to return.
+        The matplotlib figure to prepare.
 
     Returns
     -------
     fig : plt.Figure
-        The same figure object.
+        The figure object (removed from pyplot state to prevent duplication).
 
     Examples
     --------
@@ -52,5 +55,13 @@ def _prepare_figure_return(fig: plt.Figure) -> plt.Figure:
     ...     fig, ax = plt.subplots()
     ...     ax.plot([1, 2, 3])
     ...     return _prepare_figure_return(fig)
+    ...
+    >>> # In Jupyter: displays once
+    >>> fig = my_plot_function()
+    >>> # Can still save or manipulate
+    >>> fig.savefig('plot.png')
     """
+    # Remove figure from pyplot state to prevent duplicate display
+    # The figure object remains usable (can be displayed, saved, etc.)
+    plt.close(fig)
     return fig

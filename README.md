@@ -220,19 +220,20 @@ pipeline.plot_cluster_heatmap()
 pipeline.plot_cluster_radar()
 ```
 
-**Jupyter usage:** All plot functions return matplotlib Figure objects that auto-display in Jupyter notebooks.
+**Jupyter usage:** All plot functions return matplotlib Figure objects. Simply call them to display:
 
-For multiple plots in one cell:
 ```python
-from IPython.display import display
+# Each plot displays automatically in Jupyter
+pipeline.plot_cluster_heatmap()
+pipeline.plot_clusters_2d()
+pipeline.plot_cluster_radar()
 
-# Display multiple plots in one cell
-display(pipeline.plot_cluster_heatmap())
-display(pipeline.plot_clusters_2d())
-display(pipeline.plot_cluster_radar())
+# Or capture for further manipulation
+fig = pipeline.plot_cluster_heatmap()
+fig.savefig('heatmap.png')
 ```
 
-Or use separate cells for each plot (recommended for cleaner output).
+Plots are automatically managed to prevent duplication in Jupyter notebooks.
 
 ## Export Results
 
