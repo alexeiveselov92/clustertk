@@ -204,36 +204,36 @@ pipeline.create_profiles(category_mapping={
 If you installed viz dependencies (`pip install clustertk[viz]`):
 
 ```python
-# Correlation matrix
-pipeline.plot_correlation_matrix()
+from IPython.display import display
 
-# PCA variance explained
-pipeline.plot_pca_variance()
-
-# Cluster visualization in 2D
-pipeline.plot_clusters_2d(method='tsne')
-
-# Cluster profiles heatmap
-pipeline.plot_cluster_heatmap()
-
-# Radar charts for clusters
-pipeline.plot_cluster_radar()
+# Display multiple plots (use display() or separate cells)
+display(pipeline.plot_correlation_matrix())
+display(pipeline.plot_pca_variance())
+display(pipeline.plot_clusters_2d(method='tsne'))
+display(pipeline.plot_cluster_heatmap())
+display(pipeline.plot_cluster_radar())
 ```
 
-**Jupyter usage:** All plot functions return matplotlib Figure objects. Simply call them to display:
+**Jupyter usage:** All plot functions return matplotlib Figure objects.
 
 ```python
-# Each plot displays automatically in Jupyter
+# Single plot - displays automatically
 pipeline.plot_cluster_heatmap()
-pipeline.plot_clusters_2d()
-pipeline.plot_cluster_radar()
 
-# Or capture for further manipulation
+# Multiple plots in one cell - only last displays (standard Jupyter behavior)
+# Use separate cells or display() for each:
+from IPython.display import display
+
+display(pipeline.plot_cluster_heatmap())
+display(pipeline.plot_clusters_2d())
+display(pipeline.plot_cluster_radar())
+
+# Or capture for saving/manipulation
 fig = pipeline.plot_cluster_heatmap()
 fig.savefig('heatmap.png')
 ```
 
-Plots are automatically managed to prevent duplication in Jupyter notebooks.
+**Note:** When calling multiple plots in one cell, only the last one displays automatically. This is standard Python/Jupyter behavior for functions returning objects. Use `display()` or separate cells to show multiple plots.
 
 ## Export Results
 
