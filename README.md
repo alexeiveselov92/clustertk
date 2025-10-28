@@ -74,8 +74,10 @@ profiles = pipeline.cluster_profiles_        # Cluster profiles
 metrics = pipeline.metrics_                  # Quality metrics
 
 # Visualize (if viz dependencies installed)
-pipeline.plot_clusters_2d()
-pipeline.plot_cluster_heatmap()  # or plot_cluster_radar()
+# Note: In Jupyter, use display() for multiple plots in one cell
+from IPython.display import display
+display(pipeline.plot_clusters_2d())
+display(pipeline.plot_cluster_heatmap())  # or plot_cluster_radar()
 ```
 
 ## Step-by-Step Usage
