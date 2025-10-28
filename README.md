@@ -1,495 +1,196 @@
 # ClusterTK
 
-**A comprehensive toolkit for cluster analysis with full pipeline support**
-
-[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PyPI version](https://badge.fury.io/py/clustertk.svg)](https://pypi.org/project/clustertk/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-ClusterTK is a Python library designed to streamline the entire cluster analysis workflow. It provides a unified, easy-to-use interface for data preprocessing, feature selection, dimensionality reduction, clustering, evaluation, and interpretation.
+**A comprehensive Python toolkit for cluster analysis with full pipeline support.**
 
-## 📋 Quick Navigation
-
-- [Quick Start](#quick-start) ⭐ - Get started in 30 seconds
-- [Installation](#installation) - Install options
-- [Visualization](#visualization) - Plot examples
-- [Pipeline Components](#pipeline-components) - Detailed component reference
-- [Examples](./examples/) - Jupyter notebooks
-
-<details>
-<summary>📚 Table of Contents (click to expand)</summary>
-
-- [Features](#features)
-- [Installation](#installation)
-  - [Basic Installation](#basic-installation-core-functionality)
-  - [With Visualization Support](#with-visualization-support)
-  - [Full Installation](#full-installation-all-features)
-  - [Development Installation](#development-installation)
-- [Quick Start](#quick-start)
-- [Step-by-Step Usage](#step-by-step-usage)
-- [Pipeline Components](#pipeline-components)
-  - [1. Preprocessing](#1-preprocessing)
-  - [2. Feature Selection](#2-feature-selection)
-  - [3. Dimensionality Reduction](#3-dimensionality-reduction)
-  - [4. Clustering](#4-clustering)
-  - [5. Evaluation](#5-evaluation)
-  - [6. Interpretation](#6-interpretation)
-- [Visualization](#visualization)
-- [Export Results](#export-results)
-- [Advanced Usage](#advanced-usage)
-- [Contributing](#contributing)
-- [License](#license)
-
-</details>
+ClusterTK provides a complete, sklearn-style pipeline for clustering: from raw data preprocessing to cluster interpretation and export. Perfect for data analysts who want powerful clustering without writing hundreds of lines of code.
 
 ## Features
 
-- 🔄 **Complete Pipeline**: One-line solution from raw data to cluster insights
-- 🛠️ **Modular Design**: Use individual components or the full pipeline
-- 📊 **Multiple Algorithms**: K-Means, GMM, Hierarchical, DBSCAN
-- 🎯 **Automatic Optimization**: Auto-selection of optimal cluster numbers
-- 📈 **Rich Evaluation**: Comprehensive metrics (Silhouette, Calinski-Harabasz, Davies-Bouldin)
-- 🎨 **Optional Visualization**: Beautiful plots without mandatory heavy dependencies
-- 🔍 **Cluster Interpretation**: Automatic profiling and naming suggestions
-- 📁 **Export & Reports**: CSV, JSON exports, HTML reports with embedded plots
-- 💾 **Save/Load**: Serialize and reload fitted pipelines
+- 🔄 **Complete Pipeline** - One-line solution from raw data to insights
+- 📊 **Multiple Algorithms** - K-Means, GMM, Hierarchical, DBSCAN
+- 🎯 **Auto-Optimization** - Automatic optimal cluster number selection  
+- 🎨 **Rich Visualization** - Beautiful plots (optional dependency)
+- 📁 **Export & Reports** - CSV, JSON, HTML reports with embedded plots
+- 💾 **Save/Load** - Persist and reload fitted pipelines
+- 🔍 **Interpretation** - Automatic profiling and cluster naming
 
-## Installation
+## Quick Start
 
-### Basic Installation (Core functionality)
+### Installation
 
 ```bash
+# Core functionality
 pip install clustertk
-```
 
-### With Visualization Support
-
-```bash
+# With visualization
 pip install clustertk[viz]
 ```
 
-### Full Installation (All features)
-
-```bash
-pip install clustertk[all]
-```
-
-### Development Installation
-
-```bash
-git clone https://github.com/alexeiveselov92/clustertk.git
-cd clustertk
-pip install -e .[dev]
-```
-
-## Quick Start
+### Basic Usage
 
 ```python
 import pandas as pd
 from clustertk import ClusterAnalysisPipeline
 
-# Load your data
+# Load data
 df = pd.read_csv('your_data.csv')
 
-# Create and configure pipeline
+# Create and fit pipeline
 pipeline = ClusterAnalysisPipeline(
-    handle_missing='median',          # Handle missing values
-    correlation_threshold=0.85,       # Remove highly correlated features
-    pca_variance=0.9,                 # Keep 90% of variance
-    clustering_algorithm='kmeans',    # Use K-Means
-    n_clusters=None,                  # Auto-detect optimal number
+    handle_missing='median',
+    correlation_threshold=0.85,
+    n_clusters=None,  # Auto-detect optimal number
     verbose=True
 )
 
-# Run complete analysis
-pipeline.fit(df, feature_columns=['col1', 'col2', 'col3'])
+pipeline.fit(df, feature_columns=['feature1', 'feature2', 'feature3'])
 
 # Get results
-labels = pipeline.labels_                    # Cluster assignments
-profiles = pipeline.cluster_profiles_        # Cluster profiles
-metrics = pipeline.metrics_                  # Quality metrics
+labels = pipeline.labels_
+profiles = pipeline.cluster_profiles_
+metrics = pipeline.metrics_
 
-# Export results
-pipeline.export_results('results.csv')       # CSV with data + labels
-pipeline.export_results('results.json', format='json')  # JSON with metadata
-pipeline.export_report('report.html')        # HTML report with plots
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Silhouette score: {metrics['silhouette']:.3f}")
 
-# Visualize (if viz dependencies installed)
-# Note: In Jupyter, use display() for multiple plots in one cell
-from IPython.display import display
-display(pipeline.plot_clusters_2d())
-display(pipeline.plot_cluster_heatmap())  # or plot_cluster_radar()
-```
-
-## Step-by-Step Usage
-
-You can also run the pipeline step-by-step for more control:
-
-```python
-pipeline = ClusterAnalysisPipeline()
-
-# Step 1: Preprocess data
-pipeline.preprocess(df, feature_columns=['col1', 'col2', 'col3'])
-
-# Step 2: Select features
-pipeline.select_features()
-
-# Step 3: Reduce dimensions
-pipeline.reduce_dimensions()
-
-# Step 4: Find optimal number of clusters
-pipeline.find_optimal_clusters()
-
-# Step 5: Perform clustering
-pipeline.cluster(n_clusters=5)
-
-# Step 6: Create cluster profiles
-pipeline.create_profiles(category_mapping={
-    'behavioral': ['sessions', 'duration'],
-    'engagement': ['clicks', 'likes']
-})
-
-# Access intermediate results
-preprocessed_data = pipeline.data_preprocessed_
-pca_components = pipeline.data_reduced_
-```
-
-## Pipeline Components
-
-<details>
-<summary><b>🔍 Click to see detailed component documentation</b></summary>
-
-### 1. Preprocessing
-
-- **Missing Values**: Median, mean, drop, or custom imputation
-- **Outliers**: IQR detection, robust scaling, clipping, or removal
-- **Scaling**: StandardScaler, RobustScaler, MinMaxScaler, or auto-selection
-- **Transformations**: Log transformation for skewed features
-
-```python
-pipeline = ClusterAnalysisPipeline(
-    handle_missing='median',
-    handle_outliers='robust',
-    scaling='robust',
-    log_transform_skewed=True,
-    skewness_threshold=2.0
-)
-```
-
-### 2. Feature Selection
-
-- **Correlation Filtering**: Remove highly correlated features
-- **Variance Filtering**: Remove low-variance features
-
-```python
-pipeline = ClusterAnalysisPipeline(
-    correlation_threshold=0.85,
-    variance_threshold=0.01
-)
-```
-
-### 3. Dimensionality Reduction
-
-- **PCA**: Automatic component selection based on variance threshold
-- **t-SNE/UMAP**: For 2D visualization (optional)
-
-```python
-pipeline = ClusterAnalysisPipeline(
-    pca_variance=0.9,
-    pca_min_components=2
-)
-```
-
-### 4. Clustering
-
-Multiple algorithms supported:
-
-```python
-# K-Means
-pipeline = ClusterAnalysisPipeline(clustering_algorithm='kmeans', n_clusters=5)
-
-# Gaussian Mixture Model
-pipeline = ClusterAnalysisPipeline(clustering_algorithm='gmm', n_clusters=4)
-
-# Hierarchical
-pipeline = ClusterAnalysisPipeline(clustering_algorithm='hierarchical', n_clusters=3)
-
-# DBSCAN (auto-detects clusters)
-pipeline = ClusterAnalysisPipeline(clustering_algorithm='dbscan')
-```
-
-### 5. Evaluation
-
-- Automatic optimal cluster number detection
-- Multiple metrics: Silhouette, Calinski-Harabasz, Davies-Bouldin
-- Elbow method support
-
-```python
-pipeline = ClusterAnalysisPipeline(
-    n_clusters=None,              # Auto-detect
-    n_clusters_range=(2, 10)      # Search range
-)
-```
-
-### 6. Interpretation
-
-- Cluster profiling with feature importance
-- Automatic cluster naming suggestions
-- Category-based analysis
-
-```python
-pipeline.create_profiles(category_mapping={
-    'behavioral': ['sessions', 'duration', 'frequency'],
-    'social': ['messages', 'friends', 'shares'],
-    'engagement': ['clicks', 'likes', 'comments']
-})
-```
-
-</details>
-
-## Visualization
-
-If you installed viz dependencies (`pip install clustertk[viz]`):
-
-```python
-from IPython.display import display
-
-# Display multiple plots (use display() or separate cells)
-display(pipeline.plot_correlation_matrix())
-display(pipeline.plot_pca_variance())
-display(pipeline.plot_clusters_2d(method='tsne'))
-display(pipeline.plot_cluster_heatmap())
-display(pipeline.plot_cluster_radar())
-```
-
-**Jupyter usage:** All plot functions return matplotlib Figure objects.
-
-```python
-# Single plot - displays automatically
-pipeline.plot_cluster_heatmap()
-
-# Multiple plots in one cell - only last displays (standard Jupyter behavior)
-# Use separate cells or display() for each:
-from IPython.display import display
-
-display(pipeline.plot_cluster_heatmap())
-display(pipeline.plot_clusters_2d())
-display(pipeline.plot_cluster_radar())
-
-# Or capture for saving/manipulation
-fig = pipeline.plot_cluster_heatmap()
-fig.savefig('heatmap.png')
-```
-
-**Note:** When calling multiple plots in one cell, only the last one displays automatically. This is standard Python/Jupyter behavior for functions returning objects. Use `display()` or separate cells to show multiple plots.
-
-## Export Results
-
-ClusterTK provides multiple ways to export your clustering results:
-
-### Export to CSV
-
-Export cluster assignments along with original data:
-
-```python
-# Export with original data
-pipeline.export_results('results.csv', format='csv')
-
-# Export only cluster assignments
-pipeline.export_results('results.csv', format='csv', include_original=False)
-```
-
-The CSV will include:
-- All original data columns (if `include_original=True`)
-- `cluster` column with cluster assignments
-- `cluster_name` column (if cluster naming was performed)
-
-### Export to JSON
-
-Export comprehensive clustering metadata:
-
-```python
-# Full export with profiles and metrics
-pipeline.export_results('results.json', format='json')
-
-# Export without profiles
-pipeline.export_results('results.json', format='json', include_profiles=False)
-```
-
-The JSON will include:
-- Cluster labels and sizes
-- Cluster names (if available)
-- Cluster profiles (mean feature values per cluster)
-- Clustering metrics (silhouette, calinski-harabasz, etc.)
-- Pipeline configuration
-- Selected features list
-
-### Generate HTML Report
-
-Create a comprehensive HTML report with visualizations:
-
-```python
-# Full report with embedded plots
+# Export
+pipeline.export_results('results.csv')
 pipeline.export_report('report.html')
 
-# Report without plots (faster, no viz dependencies needed)
-pipeline.export_report('report.html', include_plots=False)
+# Visualize (requires clustertk[viz])
+pipeline.plot_clusters_2d()
+pipeline.plot_cluster_heatmap()
 ```
 
-The HTML report includes:
-- Clustering summary and metrics
-- Cluster sizes table
-- Cluster profiles heatmap table
-- Embedded visualizations (if `include_plots=True`)
-- Pipeline configuration details
+## Documentation
 
-### Save and Load Pipeline
+- **[Installation Guide](docs/installation.md)** - Detailed installation instructions
+- **[Quick Start](docs/quickstart.md)** - Get started in 5 minutes
+- **[User Guide](docs/user_guide/README.md)** - Complete component documentation
+  - [Preprocessing](docs/user_guide/preprocessing.md)
+  - [Feature Selection](docs/user_guide/feature_selection.md)
+  - [Clustering](docs/user_guide/clustering.md)
+  - [Evaluation](docs/user_guide/evaluation.md)
+  - [Visualization](docs/user_guide/visualization.md)
+  - [Export](docs/user_guide/export.md)
+- **[Examples](docs/examples.md)** - Real-world use cases
+- **[FAQ](docs/faq.md)** - Common questions
 
-Save your fitted pipeline for later use:
+## Pipeline Workflow
 
-```python
-# Save pipeline
-pipeline.save_pipeline('my_pipeline.joblib')
-
-# Load pipeline
-from clustertk import ClusterAnalysisPipeline
-loaded_pipeline = ClusterAnalysisPipeline.load_pipeline('my_pipeline.joblib')
-
-# Use loaded pipeline
-new_labels = loaded_pipeline.labels_
-new_profiles = loaded_pipeline.cluster_profiles_
+```
+Raw Data → Preprocessing → Feature Selection → Dimensionality Reduction
+→ Clustering → Evaluation → Interpretation → Export
 ```
 
-## Advanced Usage
+Each step is configurable through pipeline parameters or can be run independently.
 
-### Custom Functions
+## Key Capabilities
 
-You can provide custom functions for preprocessing:
+### Preprocessing
+- Missing value handling (median/mean/drop)
+- Outlier detection and treatment
+- Automatic scaling (robust/standard/minmax)
+- Skewness transformation
+
+### Clustering Algorithms
+- **K-Means** - Fast, spherical clusters
+- **GMM** - Probabilistic, elliptical clusters
+- **Hierarchical** - Dendrograms, hierarchical structure
+- **DBSCAN** - Density-based, arbitrary shapes
+
+### Evaluation
+- Silhouette score
+- Calinski-Harabasz index
+- Davies-Bouldin index
+- Automatic optimal k selection
+
+### Export & Reports
+- CSV export (data + labels)
+- JSON export (metadata + profiles)
+- HTML reports with embedded visualizations
+- Pipeline serialization (save/load)
+
+## Examples
+
+### Customer Segmentation
 
 ```python
-def my_custom_imputer(df):
-    """Custom missing value imputation logic"""
-    return df.fillna(df.median())
-
 pipeline = ClusterAnalysisPipeline(
-    handle_missing=my_custom_imputer
+    n_clusters=None,  # Auto-detect
+    auto_name_clusters=True
 )
+
+pipeline.fit(customers_df,
+            feature_columns=['age', 'income', 'purchases'],
+            category_mapping={
+                'demographics': ['age', 'income'],
+                'behavior': ['purchases']
+            })
+
+pipeline.export_report('customer_segments.html')
 ```
 
-### Custom Clusterer
-
-Use your own clustering implementation:
+### Anomaly Detection
 
 ```python
-from sklearn.cluster import SpectralClustering
-
-custom_clusterer = SpectralClustering(n_clusters=4, random_state=42)
-
 pipeline = ClusterAnalysisPipeline(
-    clustering_algorithm=custom_clusterer
+    clustering_algorithm='dbscan'
 )
+
+pipeline.fit(transactions_df)
+anomalies = transactions_df[pipeline.labels_ == -1]
 ```
 
-## Architecture
-
-ClusterTK is built with a modular architecture:
-
-```
-clustertk/
-├── preprocessing/        # Data cleaning and transformation
-├── feature_selection/    # Feature filtering
-├── dimensionality/       # PCA, t-SNE, UMAP
-├── clustering/           # Clustering algorithms
-├── evaluation/           # Metrics and optimization
-├── interpretation/       # Profiling and naming
-└── visualization/        # Plotting (optional)
-```
-
-Each module can be used independently:
-
-```python
-from clustertk.preprocessing import MissingValueHandler
-from clustertk.clustering import KMeansClustering
-
-# Use individual components
-handler = MissingValueHandler(strategy='median')
-clean_data = handler.fit_transform(df)
-
-clusterer = KMeansClustering(n_clusters=5)
-labels = clusterer.fit_predict(clean_data)
-```
+More examples: [docs/examples.md](docs/examples.md)
 
 ## Requirements
 
-### Core Dependencies
-
+- Python 3.8+
 - numpy >= 1.20.0
 - pandas >= 1.3.0
 - scikit-learn >= 1.0.0
 - scipy >= 1.7.0
+- joblib >= 1.0.0
 
-### Optional Dependencies
-
-- matplotlib >= 3.4.0 (for visualization)
-- seaborn >= 0.11.0 (for visualization)
-- umap-learn >= 0.5.0 (for UMAP)
-- hdbscan >= 0.8.0 (for HDBSCAN)
-
-## Examples
-
-Check out the [examples](examples/) directory for complete notebooks:
-
-- `basic_usage.ipynb` - Basic clustering workflow
-- `advanced_customization.ipynb` - Custom preprocessing and clustering
-- `visualization_guide.ipynb` - All visualization options
-- `interpretation.ipynb` - Cluster profiling and interpretation
-
-## Documentation
-
-Full documentation is available at: [https://clustertk.readthedocs.io](https://clustertk.readthedocs.io)
+Optional (for visualization):
+- matplotlib >= 3.4.0
+- seaborn >= 0.11.0
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please check:
+- [GitHub Issues](https://github.com/alexeiveselov92/clustertk/issues) - Report bugs
+- [GitHub Discussions](https://github.com/alexeiveselov92/clustertk/discussions) - Questions
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Citation
 
 If you use ClusterTK in your research, please cite:
 
 ```bibtex
-@software{clustertk,
-  author = {Aleksey Veselov},
-  title = {ClusterTK: A Comprehensive Toolkit for Cluster Analysis},
+@software{clustertk2024,
+  author = {Veselov, Aleksey},
+  title = {ClusterTK: A Comprehensive Python Toolkit for Cluster Analysis},
   year = {2024},
   url = {https://github.com/alexeiveselov92/clustertk}
 }
 ```
 
-## Roadmap
+## Links
 
-- [x] Core pipeline implementation
-- [x] Basic clustering algorithms
-- [ ] Advanced clustering methods (HDBSCAN, Spectral)
-- [ ] GPU support (cuML integration)
-- [ ] Streaming/incremental clustering
-- [ ] AutoML for hyperparameter tuning
-- [ ] Web UI for interactive analysis
-- [ ] Time series clustering support
+- **PyPI**: https://pypi.org/project/clustertk/
+- **GitHub**: https://github.com/alexeiveselov92/clustertk
+- **Documentation**: [docs/](docs/)
+- **Author**: Aleksey Veselov (alexei.veselov92@gmail.com)
 
-## Acknowledgments
+---
 
-ClusterTK builds upon the excellent work of:
-
-- [scikit-learn](https://scikit-learn.org/) - Machine learning algorithms
-- [pandas](https://pandas.pydata.org/) - Data manipulation
-- [matplotlib](https://matplotlib.org/) & [seaborn](https://seaborn.pydata.org/) - Visualization
-
-## Support
-
-- 📧 Email: alexei.veselov92@gmail.com
-- 🐛 Issues: [GitHub Issues](https://github.com/alexeiveselov92/clustertk/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/alexeiveselov92/clustertk/discussions)
+Made with ❤️ for the data science community
