@@ -1,8 +1,8 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.7.0 🚀
+## Текущий статус: v0.8.0 🚀
 
-**Latest Release:** v0.7.0 (ready to publish)
+**Latest Release:** v0.8.0 (ready to publish on PyPI)
 **PyPI:** https://pypi.org/project/clustertk/
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
@@ -72,80 +72,66 @@
 - [x] Тесты функционала (test_comparison.py - все пройдены)
 - [x] Документация с примерами (README, clustering.md, examples.md, FAQ)
 
-## 🎯 Приоритеты для v0.8.0
+## ✅ v0.8.0 - HDBSCAN & Test Suite (Completed)
 
-### HIGH PRIORITY (Must-have для v0.8.0)
+### HDBSCAN Algorithm ✅
+- [x] Реализация HDBSCANClustering класса
+- [x] Автоподбор параметров (min_cluster_size, min_samples)
+- [x] Интеграция в Pipeline
+- [x] Добавление в compare_algorithms()
+- [x] Документация и примеры
 
-1. **Tests** 🔥
-   - [ ] Unit tests для preprocessing модулей (missing, outliers, scaling, transforms)
-   - [ ] Unit tests для clustering алгоритмов (kmeans, gmm, hierarchical, dbscan)
-   - [ ] Unit tests для evaluation (metrics, optimal_k)
-   - [ ] Integration tests для Pipeline (fit, transform, full workflow)
-   - [ ] Tests для compare_algorithms() (v0.7.0 feature)
-   - [ ] Tests для export/report функционала
-   - [ ] Цель: покрытие >50%
-   - **Обоснование:** Библиотека растёт, нужна стабильность и защита от регрессий.
+### Test Suite ✅
+- [x] Unit tests для preprocessing модулей (missing, scaling)
+- [x] Unit tests для clustering алгоритмов (kmeans)
+- [x] Unit tests для evaluation (metrics)
+- [x] Integration tests для Pipeline (fit, transform, full workflow)
+- [x] Pytest infrastructure с pytest.ini
+- [x] 39 тестов, 39% coverage (clustering 66-76%, preprocessing 61-69%)
+- [x] Fixtures для различных сценариев данных
 
-2. **HDBSCAN Algorithm** 🔥
-   - [ ] Реализация HDBSCANClustering класса
-   - [ ] Автоподбор параметров (min_cluster_size, min_samples)
-   - [ ] Интеграция в Pipeline
-   - [ ] Добавление в compare_algorithms()
-   - [ ] Документация и примеры
-   - **Обоснование:** Один из самых популярных алгоритмов, часто запрашивается сообществом.
+### Build & Release ✅
+- [x] Build packages успешно (wheel + source distribution)
+- [x] Packages прошли twine check
+- [x] Git tag v0.8.0 создан и pushed
+- [x] Release notes (RELEASE_NOTES_v0.8.0.md)
+- [x] Version numbers обновлены (setup.py, pyproject.toml, __init__.py)
+- [ ] **TODO: Publish to PyPI** (требует API token, см. PUBLISH_v0.8.0.md)
 
-1. **Tests** 🔥
-   - [ ] Unit tests для preprocessing модулей (missing, outliers, scaling, transforms)
-   - [ ] Unit tests для clustering алгоритмов (kmeans, gmm, hierarchical, dbscan)
-   - [ ] Unit tests для evaluation (metrics, optimal_k)
-   - [ ] Integration tests для Pipeline (fit, transform, full workflow)
-   - [ ] Tests для compare_algorithms() (v0.7.0 feature)
-   - [ ] Tests для export/report функционала
-   - [ ] Цель: покрытие >50%
-   - **Обоснование:** Библиотека растёт, нужна стабильность и защита от регрессий.
+## 🎯 Приоритеты для v0.9.0
 
-2. **HDBSCAN Algorithm** 🔥
-   - [ ] Реализация HDBSCANClustering класса
-   - [ ] Автоподбор параметров (min_cluster_size, min_samples)
-   - [ ] Интеграция в Pipeline
-   - [ ] Добавление в compare_algorithms()
-   - [ ] Документация и примеры
-   - **Обоснование:** Один из самых популярных алгоритмов, часто запрашивается сообществом.
+### HIGH PRIORITY
 
-### MEDIUM PRIORITY (Желательно для v0.8.0)
+1. **Enhanced Test Coverage** 🔥
+   - [ ] Добавить тесты для outliers, transforms модулей
+   - [ ] Тесты для GMM, Hierarchical, DBSCAN, HDBSCAN
+   - [ ] Тесты для optimal_k
+   - [ ] Тесты для export/report функционала
+   - [ ] Тесты для visualization модуля
+   - [ ] Цель: coverage >50%
 
-3. **Enhanced Feature Analysis**
-   - [ ] Расширенный feature importance (не только top features)
-     - SHAP values для интерпретации
-     - Permutation importance
-     - Feature contribution to cluster separation
-   - [ ] Anomaly detection внутри кластеров
-     - Local Outlier Factor per cluster
-     - Isolation Forest per cluster
-     - Визуализация аномалий
-   - **Обоснование:** Практически полезно для реального анализа данных.
+2. **CI/CD Setup** 🔥
+   - [ ] GitHub Actions для автоматических тестов
+   - [ ] Автоматическая проверка code style (black, flake8)
+   - [ ] Coverage reports (codecov integration)
+   - [ ] Автоматическая публикация на PyPI при release tag
 
-4. **More Clustering Algorithms**
-   - [ ] HDBSCAN (hierarchical DBSCAN) - очень популярен
+### MEDIUM PRIORITY
+
+3. **More Clustering Algorithms**
    - [ ] Spectral Clustering
+   - [ ] OPTICS (Ordering Points To Identify Clustering Structure)
    - [ ] Mini-Batch K-Means (для больших данных)
-   - **Обоснование:** HDBSCAN особенно востребован сообществом.
 
-5. **Tests**
-   - [ ] Unit tests для критичных модулей (preprocessing, clustering, evaluation)
-   - [ ] Integration tests для Pipeline
-   - [ ] Тесты для export функционала
-   - [ ] Цель: покрытие >50% для v0.6.0
+4. **Enhanced Feature Analysis**
+   - [ ] SHAP values для интерпретации
+   - [ ] Permutation importance
+   - [ ] Feature contribution to cluster separation
+   - [ ] Anomaly detection внутри кластеров (LOF, Isolation Forest)
 
 ### LOW PRIORITY (Backlog)
 
-6. **CI/CD**
-   - [ ] GitHub Actions для автоматических тестов
-   - [ ] Автоматическая проверка code style (black, flake8)
-   - [ ] Coverage reports
-   - [ ] Автоматическая публикация на PyPI при release tag
-
-7. **Advanced Features**
+5. **Advanced Features**
    - [ ] Ensemble clustering (voting между алгоритмами)
    - [ ] Автоматический feature engineering (polynomial, interactions)
    - [ ] Stability analysis (bootstrap resampling)
