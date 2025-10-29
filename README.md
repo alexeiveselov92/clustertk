@@ -2,6 +2,8 @@
 
 [![PyPI version](https://badge.fury.io/py/clustertk.svg)](https://pypi.org/project/clustertk/)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/alexeiveselov92/clustertk/workflows/Tests/badge.svg)](https://github.com/alexeiveselov92/clustertk/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/alexeiveselov92/clustertk/branch/main/graph/badge.svg)](https://codecov.io/gh/alexeiveselov92/clustertk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **A comprehensive Python toolkit for cluster analysis with full pipeline support.**
