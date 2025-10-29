@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-10-29
+
+### Added
+- **Feature Importance Analysis** - Understand which features drive clustering results
+  - Three analysis methods: Permutation importance, Feature contribution (variance ratio), SHAP values (optional)
+  - `analyze_feature_importance()` pipeline method
+  - `FeatureImportanceAnalyzer` class for standalone usage
+  - `quick_feature_importance()` convenience function
+  - Per-feature importance scores with statistical measures (mean, std)
+  - Handles noise labels (-1 for DBSCAN) correctly
+  - 21 comprehensive tests with 83% coverage
+  - Full documentation in `docs/user_guide/interpretation.md` and `docs/examples.md`
+- **Cluster Stability Analysis** - Assess clustering reliability via bootstrap resampling
+  - `analyze_stability()` pipeline method with configurable iterations and sample fraction
+  - `ClusterStabilityAnalyzer` class for standalone usage
+  - `quick_stability_analysis()` convenience function
+  - Overall stability score via pairwise Adjusted Rand Index (ARI)
+  - Per-cluster stability scores (pair consistency across iterations)
+  - Per-sample confidence scores (assignment consistency)
+  - Automatic identification of stable (>0.7) and unstable (<0.5) clusters
+  - `get_stable_samples()` and `get_unstable_samples()` helper methods
+  - 20 comprehensive tests with 94% coverage
+  - Full documentation in `docs/user_guide/evaluation.md` and `docs/examples.md`
+  - Interpretation guidelines for decision-making
+
+### Changed
+- Updated README with feature importance and stability analysis examples
+- Fixed duplicate HDBSCAN entry in README
+- Added interpretation link to documentation navigation
+- Expanded evaluation section to "Evaluation & Interpretation"
+
+### Documentation
+- Added feature importance section to `docs/user_guide/interpretation.md` (100+ lines)
+- Added feature importance example to `docs/examples.md` with customer segmentation scenario
+- Added 3 FAQ entries about feature importance (which method to use, how to reduce features)
+- Added stability analysis section to `docs/user_guide/evaluation.md` (120+ lines)
+- Added stability analysis example to `docs/examples.md` with decision-making workflow (100+ lines)
+- All documentation includes interpretation guides and best practices
+
 ## [0.8.0] - 2025-10-29
 
 ### Added
