@@ -308,6 +308,139 @@ for cluster_id in range(pipeline.n_clusters_):
     print(top_terms)
 ```
 
+## Feature Importance Analysis
+
+Understand which features drive your clustering results:
+
+```python
+import pandas as pd
+from clustertk import ClusterAnalysisPipeline
+
+# Load customer data
+customers = pd.read_csv('customers.csv')
+features = ['age', 'income', 'purchases', 'visits', 'avg_order_value',
+            'days_since_last_purchase', 'total_spent']
+
+# Configure and fit pipeline
+pipeline = ClusterAnalysisPipeline(
+    handle_missing='median',
+    scaling='robust',
+    pca_variance=0.95,
+    clustering_algorithm='kmeans',
+    n_clusters=4,
+    verbose=True
+)
+
+pipeline.fit(customers, feature_columns=features)
+
+# Analyze feature importance using all methods
+results = pipeline.analyze_feature_importance(
+    method='all',
+    n_repeats=10,
+    random_state=42
+)
+
+# View permutation importance
+print("\n=== Permutation Importance ===")
+print("(How much each feature affects clustering quality)\n")
+print(results['permutation'].head(10))
+# Output:
+#                     feature  importance       std
+# 0              total_spent    0.234567  0.018234
+# 1  days_since_last_purchase  0.198765  0.015432
+# 2                 purchases    0.187654  0.012345
+# 3            avg_order_value  0.156789  0.010987
+# 4                    income    0.098765  0.008765
+
+# View feature contribution (variance ratio)
+print("\n=== Feature Contribution ===")
+print("(Between-cluster variance / within-cluster variance)\n")
+print(results['contribution'].head(10))
+# Output:
+#                     feature  contribution
+# 0  days_since_last_purchase     15.234567
+# 1              total_spent     12.456789
+# 2                 purchases     10.123456
+# 3            avg_order_value      8.765432
+# 4                       age      5.432109
+
+# SHAP analysis (if shap is installed)
+if 'shap' in results:
+    print("\n=== SHAP Importance ===")
+    print("(Feature importance with interaction effects)\n")
+    print(results['shap']['importance'].head(10))
+
+# Identify most important features
+# Combine permutation and contribution scores
+perm = results['permutation'][['feature', 'importance']].rename(
+    columns={'importance': 'perm_score'}
+)
+contrib = results['contribution'][['feature', 'contribution']].rename(
+    columns={'contribution': 'contrib_score'}
+)
+
+combined = perm.merge(contrib, on='feature')
+combined['combined_score'] = (
+    combined['perm_score'] / combined['perm_score'].max() +
+    combined['contrib_score'] / combined['contrib_score'].max()
+)
+combined = combined.sort_values('combined_score', ascending=False)
+
+print("\n=== Combined Feature Ranking ===")
+print(combined.head(10))
+
+# Use top features for focused analysis
+top_features = combined.head(5)['feature'].tolist()
+print(f"\nTop 5 most important features:")
+for i, feat in enumerate(top_features, 1):
+    print(f"{i}. {feat}")
+
+# Create new pipeline with only top features
+print("\n=== Re-running analysis with top features only ===")
+pipeline_focused = ClusterAnalysisPipeline(
+    handle_missing='median',
+    scaling='robust',
+    clustering_algorithm='kmeans',
+    n_clusters=4
+)
+
+pipeline_focused.fit(customers, feature_columns=top_features)
+
+print(f"\nOriginal silhouette score (all features): {pipeline.metrics_['silhouette']:.3f}")
+print(f"Focused silhouette score (top 5 features): {pipeline_focused.metrics_['silhouette']:.3f}")
+
+# Export results
+pipeline.export_report('customer_analysis_full.html')
+pipeline_focused.export_report('customer_analysis_focused.html')
+
+print("\n✓ Feature importance analysis complete!")
+print(f"✓ Identified {len(top_features)} key features")
+print("✓ Created focused analysis with top features")
+```
+
+**When to use feature importance analysis:**
+- Understanding which features matter most
+- Reducing dimensionality by selecting key features
+- Explaining clustering results to stakeholders
+- Validating domain knowledge about important variables
+- Identifying redundant or irrelevant features
+
+**Comparison of methods:**
+```python
+# Quick comparison of all three methods
+from clustertk.interpretation import quick_feature_importance
+
+top_features = quick_feature_importance(
+    X=customers[features],
+    labels=pipeline.labels_,
+    method='all',
+    n_top=10
+)
+
+print(top_features)
+# Shows combined ranking from all methods
+```
+
 ## Comparing Multiple Algorithms
 
 ```python
@@ -325,7 +458,7 @@ for algo in algorithms:
         random_state=42
     )
     pipeline.fit(df, feature_columns=features)
-    
+
     results.append({
         'Algorithm': algo,
         'Silhouette': pipeline.metrics_['silhouette'],

@@ -214,6 +214,65 @@ custom_algo = SpectralClustering(n_clusters=5)
 pipeline = ClusterAnalysisPipeline(clustering_algorithm=custom_algo)
 ```
 
+### Q: How do I understand which features are most important?
+
+Use feature importance analysis:
+
+```python
+# Analyze feature importance
+results = pipeline.analyze_feature_importance(method='all')
+
+# View permutation importance
+print(results['permutation'].head(10))
+
+# View feature contribution (variance ratio)
+print(results['contribution'].head(10))
+
+# SHAP values (if shap is installed)
+if 'shap' in results:
+    print(results['shap']['importance'].head(10))
+```
+
+See [Feature Importance](user_guide/interpretation.md#feature-importance-analysis) for details.
+
+### Q: Which feature importance method should I use?
+
+**Quick answer:** Start with `method='contribution'` (fast), then use `method='permutation'` for reliable ranking.
+
+| Method | Best For | Speed | Requires |
+|--------|----------|-------|----------|
+| **contribution** | Quick statistical insights | Fast | - |
+| **permutation** | Reliable feature ranking | Medium | sklearn |
+| **shap** | Detailed analysis, interactions | Slow | pip install shap |
+
+**Detailed comparison:**
+- **Contribution** (variance ratio): Fast, shows how well each feature separates clusters statistically
+- **Permutation**: Measures impact on clustering quality, more robust but slower
+- **SHAP**: Most detailed, shows feature interactions, requires extra package
+
+```python
+# Use all methods and compare
+results = pipeline.analyze_feature_importance(method='all')
+```
+
+### Q: Can I reduce features based on importance?
+
+Yes! Use feature importance to identify key features:
+
+```python
+# Get feature importance
+results = pipeline.analyze_feature_importance(method='permutation')
+top_features = results['permutation'].head(5)['feature'].tolist()
+
+# Re-run analysis with only top features
+pipeline_focused = ClusterAnalysisPipeline(...)
+pipeline_focused.fit(df, feature_columns=top_features)
+
+# Compare quality
+print(f"Original: {pipeline.metrics_['silhouette']:.3f}")
+print(f"Focused: {pipeline_focused.metrics_['silhouette']:.3f}")
+```
+
 ### Q: How do I cluster new data with a fitted pipeline?
 
 ```python
