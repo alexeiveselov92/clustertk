@@ -95,18 +95,12 @@
 - [x] Packages прошли twine check
 - [x] Git tag v0.8.0 создан и pushed
 - [x] Version numbers обновлены (setup.py, pyproject.toml, __init__.py)
-- [ ] **TODO: Publish to PyPI** (ручная публикация)
-  ```bash
-  # Get API token: https://pypi.org/manage/account/token/
-  export TWINE_USERNAME="__token__"
-  export TWINE_PASSWORD="pypi-YOUR_TOKEN"
-  python3 -m twine upload dist/clustertk-0.8.0*
-  ```
-- [ ] **TODO: Create GitHub Release**
+- [x] **Published to PyPI** ✅ https://pypi.org/project/clustertk/0.8.0/
+- [ ] **TODO: Create GitHub Release** (осталось только это!)
   - URL: https://github.com/alexeiveselov92/clustertk/releases/new
   - Tag: v0.8.0
   - Title: v0.8.0 - HDBSCAN Algorithm & Test Suite
-  - Description: Copy from git tag message
+  - Description: Major features - HDBSCAN clustering algorithm, comprehensive test suite (39 tests, 39% coverage)
   - Attach: dist/clustertk-0.8.0-py3-none-any.whl, dist/clustertk-0.8.0.tar.gz
 
 ## 🎯 Приоритеты для v0.9.0
