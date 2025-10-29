@@ -441,6 +441,127 @@ print(top_features)
 # Shows combined ranking from all methods
 ```
 
+## Cluster Stability Analysis
+
+Validate clustering reliability before making business decisions:
+
+```python
+import pandas as pd
+import numpy as np
+from clustertk import ClusterAnalysisPipeline
+
+# Load data
+customers = pd.read_csv('customers.csv')
+features = ['age', 'income', 'purchases', 'avg_order_value']
+
+# Create pipeline
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='kmeans',
+    n_clusters=4,
+    scaling='robust',
+    verbose=True
+)
+
+# Fit pipeline
+pipeline.fit(customers, feature_columns=features)
+
+print(f"\nInitial clustering:")
+print(f"  Silhouette score: {pipeline.metrics_['silhouette']:.3f}")
+print(f"  Number of clusters: {pipeline.n_clusters_}")
+
+# Analyze stability
+print("\n" + "="*80)
+print("STABILITY ANALYSIS")
+print("="*80)
+
+stability_results = pipeline.analyze_stability(
+    n_iterations=100,
+    sample_fraction=0.8,
+    random_state=42
+)
+
+print(f"\nOverall stability: {stability_results['overall_stability']:.3f}")
+print(f"Mean ARI: {stability_results['mean_ari']:.3f}")
+
+# Per-cluster analysis
+print("\nCluster stability breakdown:")
+cluster_stability = stability_results['cluster_stability']
+for _, row in cluster_stability.iterrows():
+    cluster_id = int(row['cluster'])
+    stability = row['stability']
+    size = int(row['size'])
+
+    status = "✓ STABLE" if stability > 0.7 else "⚠ UNSTABLE" if stability < 0.5 else "~ MODERATE"
+    print(f"  Cluster {cluster_id} ({size} customers): {stability:.3f} {status}")
+
+# Sample confidence analysis
+confidence = stability_results['sample_confidence']
+print(f"\nSample confidence:")
+print(f"  Mean: {np.mean(confidence):.3f}")
+print(f"  Median: {np.median(confidence):.3f}")
+
+# Identify unstable samples
+unstable_threshold = 0.5
+unstable_mask = confidence < unstable_threshold
+unstable_count = np.sum(unstable_mask)
+unstable_pct = unstable_count / len(confidence) * 100
+
+print(f"  Unstable samples: {unstable_count} ({unstable_pct:.1f}%)")
+
+if unstable_count > 0:
+    print("\n⚠ Warning: Some samples have low confidence scores")
+    print("  Consider:")
+    print("  - Reviewing features for these samples")
+    print("  - Trying different clustering algorithms")
+    print("  - Adjusting number of clusters")
+
+# Decision making based on stability
+print("\n" + "="*80)
+print("RECOMMENDATIONS")
+print("="*80)
+
+overall_stability = stability_results['overall_stability']
+
+if overall_stability > 0.8:
+    print("✓ HIGH STABILITY - Results are reliable")
+    print("  Safe to use for business decisions")
+    print("  Clusters are well-defined and consistent")
+elif overall_stability > 0.6:
+    print("~ MODERATE STABILITY - Results are reasonable")
+    print("  Consider validation with domain experts")
+    print("  Monitor unstable clusters closely")
+else:
+    print("⚠ LOW STABILITY - Results may not be reliable")
+    print("  Recommendations:")
+    print("  1. Try different clustering algorithms")
+    print("  2. Adjust number of clusters")
+    print("  3. Improve feature engineering")
+    print("  4. Collect more data or better features")
+
+# Export results with confidence scores
+customers_with_confidence = customers.copy()
+customers_with_confidence['cluster'] = pipeline.labels_
+customers_with_confidence['confidence'] = confidence
+customers_with_confidence.to_csv('customers_with_stability.csv', index=False)
+
+print(f"\n✓ Results exported to customers_with_stability.csv")
+```
+
+**When to use stability analysis:**
+- Before presenting results to stakeholders
+- When clusters will drive important decisions (pricing, marketing, etc.)
+- With noisy or uncertain data
+- To compare different clustering approaches
+- To identify which customers/samples are reliably clustered
+
+**Interpretation guide:**
+- **Overall stability > 0.8**: Strong, trust the results
+- **Overall stability 0.6-0.8**: Moderate, validate with experts
+- **Overall stability < 0.6**: Weak, reconsider approach
+- **Cluster stability > 0.7**: Well-defined cluster
+- **Cluster stability < 0.5**: Poorly-defined, consider merging/removing
+- **Sample confidence < 0.5**: Boundary points, uncertain assignment
+
 ## Comparing Multiple Algorithms
 
 ```python
