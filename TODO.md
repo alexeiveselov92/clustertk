@@ -1,9 +1,9 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.8.0 🚀
+## Текущий статус: v0.9.0 🚀
 
-**Latest Release:** v0.8.0 (ready to publish on PyPI)
-**PyPI:** https://pypi.org/project/clustertk/
+**Latest Release:** v0.9.0 (Published!)
+**PyPI:** https://pypi.org/project/clustertk/0.9.0/
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
 ## ✅ Что завершено
@@ -121,16 +121,38 @@
    - [ ] Coverage reports (codecov integration)
    - [ ] Автоматическая публикация на PyPI при release tag
 
-### MEDIUM PRIORITY
+## ✅ v0.9.0 - Feature Importance & Stability Analysis (Completed!)
 
-3. **Enhanced Feature Analysis** ✅ (v0.9.0 - COMPLETED)
+### Feature Importance Analysis ✅
    - [x] Permutation importance - measures impact on clustering quality
    - [x] Feature contribution - variance ratio analysis
    - [x] SHAP values integration (optional dependency)
    - [x] Pipeline integration via `analyze_feature_importance()`
    - [x] Documentation examples (interpretation.md, examples.md, faq.md)
    - [x] Tests for feature importance (21 tests, 83% coverage)
-   - [ ] Anomaly detection внутри кластеров (LOF, Isolation Forest) - moved to v0.10.0
+
+### Cluster Stability Analysis ✅
+   - [x] Bootstrap resampling implementation
+   - [x] Overall stability via pairwise ARI
+   - [x] Per-cluster stability scores (pair consistency)
+   - [x] Per-sample confidence scores
+   - [x] Stable/unstable cluster identification
+   - [x] Pipeline integration via `analyze_stability()`
+   - [x] Documentation examples (evaluation.md, examples.md)
+   - [x] Tests for stability analysis (20 tests, 94% coverage)
+
+### Release ✅
+   - [x] Version bump to 0.9.0
+   - [x] CHANGELOG.md updated
+   - [x] Published to PyPI: https://pypi.org/project/clustertk/0.9.0/
+   - [x] Git tag v0.9.0 created
+   - [ ] GitHub Release (create manually at https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.9.0)
+
+---
+
+## 🎯 Приоритеты для v0.10.0+
+
+### MEDIUM PRIORITY
 
 4. **More Clustering Algorithms**
    - [ ] Spectral Clustering
