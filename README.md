@@ -11,12 +11,12 @@ ClusterTK provides a complete, sklearn-style pipeline for clustering: from raw d
 ## Features
 
 - 🔄 **Complete Pipeline** - One-line solution from raw data to insights
-- 📊 **Multiple Algorithms** - K-Means, GMM, Hierarchical, DBSCAN
-- 🎯 **Auto-Optimization** - Automatic optimal cluster number selection  
+- 📊 **Multiple Algorithms** - K-Means, GMM, Hierarchical, DBSCAN, HDBSCAN
+- 🎯 **Auto-Optimization** - Automatic optimal cluster number selection
 - 🎨 **Rich Visualization** - Beautiful plots (optional dependency)
 - 📁 **Export & Reports** - CSV, JSON, HTML reports with embedded plots
 - 💾 **Save/Load** - Persist and reload fitted pipelines
-- 🔍 **Interpretation** - Automatic profiling and cluster naming
+- 🔍 **Interpretation** - Profiling, naming, and feature importance analysis
 
 ## Quick Start
 
@@ -75,6 +75,7 @@ pipeline.plot_cluster_heatmap()
   - [Feature Selection](docs/user_guide/feature_selection.md)
   - [Clustering](docs/user_guide/clustering.md)
   - [Evaluation](docs/user_guide/evaluation.md)
+  - [Interpretation](docs/user_guide/interpretation.md) - Profiles, naming, feature importance
   - [Visualization](docs/user_guide/visualization.md)
   - [Export](docs/user_guide/export.md)
 - **[Examples](docs/examples.md)** - Real-world use cases
@@ -103,13 +104,15 @@ Each step is configurable through pipeline parameters or can be run independentl
 - **Hierarchical** - Dendrograms, hierarchical structure
 - **DBSCAN** - Density-based, arbitrary shapes
 - **HDBSCAN** - Advanced density-based, varying densities (v0.8.0+)
-- **HDBSCAN** - Advanced density-based, varying densities (v0.8.0+)
 
-### Evaluation
-- Silhouette score
-- Calinski-Harabasz index
-- Davies-Bouldin index
+### Evaluation & Interpretation
+- Silhouette score, Calinski-Harabasz, Davies-Bouldin metrics
 - Automatic optimal k selection
+- Cluster profiling and automatic naming
+- **Feature importance analysis** (v0.9.0+)
+  - Permutation importance
+  - Feature contribution (variance ratio)
+  - SHAP values (optional)
 
 ### Export & Reports
 - CSV export (data + labels)
@@ -118,24 +121,22 @@ Each step is configurable through pipeline parameters or can be run independentl
 - Pipeline serialization (save/load)
 
 ## Examples
-### Algorithm Comparison
+
+### Feature Importance Analysis
 
 ```python
-# Compare multiple algorithms automatically
-results = pipeline.compare_algorithms(
-    X=df,
-    feature_columns=['feature1', 'feature2', 'feature3'],
-    algorithms=['kmeans', 'gmm', 'hierarchical', 'dbscan'],
-    n_clusters_range=(2, 8)
-)
+# Understand which features drive your clustering
+results = pipeline.analyze_feature_importance(method='all')
 
-print(results['comparison'])  # DataFrame with metrics
-print(f"Best algorithm: {results['best_algorithm']}")
+# View permutation importance
+print(results['permutation'].head())
 
-# Visualize comparison
-pipeline.plot_algorithm_comparison(results)
+# View feature contribution (variance ratio)
+print(results['contribution'].head())
+
+# Use top features for focused analysis
+top_features = results['permutation'].head(5)['feature'].tolist()
 ```
-
 
 ### Algorithm Comparison
 
