@@ -244,7 +244,7 @@ OptimalKFinder использует голосование трех метрик
    - Временные скрипты (PUBLISH_NOW.sh и т.п.) - НЕ создавать!
 
 2. **В корне должны быть ТОЛЬКО:**
-   - Documentation: README.md, ARCHITECTURE.md, CLAUDE.md, TODO.md
+   - Documentation: README.md, ARCHITECTURE.md, CLAUDE.md, TODO.md, CHANGELOG.md
    - Configuration: setup.py, pyproject.toml, pytest.ini
    - Requirements: requirements*.txt
    - Directories: clustertk/, tests/, docs/, examples/
