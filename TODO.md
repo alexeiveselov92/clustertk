@@ -123,16 +123,19 @@
 
 ### MEDIUM PRIORITY
 
-3. **More Clustering Algorithms**
+3. **Enhanced Feature Analysis** ✅ (v0.9.0 - COMPLETED)
+   - [x] Permutation importance - measures impact on clustering quality
+   - [x] Feature contribution - variance ratio analysis
+   - [x] SHAP values integration (optional dependency)
+   - [x] Pipeline integration via `analyze_feature_importance()`
+   - [x] Documentation examples (interpretation.md, examples.md, faq.md)
+   - [x] Tests for feature importance (21 tests, 83% coverage)
+   - [ ] Anomaly detection внутри кластеров (LOF, Isolation Forest) - moved to v0.10.0
+
+4. **More Clustering Algorithms**
    - [ ] Spectral Clustering
    - [ ] OPTICS (Ordering Points To Identify Clustering Structure)
    - [ ] Mini-Batch K-Means (для больших данных)
-
-4. **Enhanced Feature Analysis**
-   - [ ] SHAP values для интерпретации
-   - [ ] Permutation importance
-   - [ ] Feature contribution to cluster separation
-   - [ ] Anomaly detection внутри кластеров (LOF, Isolation Forest)
 
 ### LOW PRIORITY (Backlog)
 
