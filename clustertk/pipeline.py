@@ -5,7 +5,7 @@ This module provides the ClusterAnalysisPipeline class, which orchestrates
 the entire clustering workflow from preprocessing to interpretation.
 """
 
-from typing import Optional, Union, List, Dict, Any, Callable
+from typing import Optional, Union, List, Dict, Any, Callable, Literal
 import warnings
 import pandas as pd
 import numpy as np
@@ -868,6 +868,100 @@ class ClusterAnalysisPipeline:
             return None
 
         return self.cluster_names_.get(cluster_id)
+
+    def analyze_feature_importance(
+        self,
+        method: Literal['permutation', 'shap', 'contribution', 'all'] = 'all',
+        n_repeats: int = 10,
+        random_state: Optional[int] = 42
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Analyze feature importance for clustering results.
+
+        Provides multiple methods for understanding which features
+        are most important for cluster formation and separation.
+
+        Parameters
+        ----------
+        method : {'permutation', 'shap', 'contribution', 'all'}, default='all'
+            Which analysis method(s) to use:
+            - 'permutation': Permutation importance (how much each feature affects clustering quality)
+            - 'shap': SHAP values (requires shap package: pip install shap)
+            - 'contribution': Feature contribution to cluster separation
+            - 'all': Run all available methods
+        n_repeats : int, default=10
+            Number of permutation repeats (for permutation method).
+        random_state : int or None, default=42
+            Random state for reproducibility.
+
+        Returns
+        -------
+        results : dict
+            Dictionary with analysis results:
+            - 'permutation': DataFrame with permutation importance
+            - 'contribution': DataFrame with feature contribution
+            - 'shap': SHAP analysis results (if method='shap' or 'all')
+
+        Examples
+        --------
+        >>> pipeline = ClusterAnalysisPipeline(clustering_algorithm='kmeans', n_clusters=3)
+        >>> pipeline.fit(df, feature_columns=['f1', 'f2', 'f3'])
+        >>> importance = pipeline.analyze_feature_importance(method='permutation')
+        >>> print(importance['permutation'].head())
+
+        Notes
+        -----
+        - SHAP analysis requires the 'shap' package: pip install shap
+        - Permutation importance uses silhouette score as the metric
+        - Feature contribution uses variance ratio (between/within clusters)
+        """
+        from clustertk.interpretation import FeatureImportanceAnalyzer
+
+        # Check prerequisites
+        if self.data_scaled_ is None or self.labels_ is None:
+            raise ValueError(
+                "Pipeline must be fitted before analyzing feature importance. "
+                "Call fit() first."
+            )
+
+        if self.verbose:
+            print(f"\nAnalyzing feature importance (method={method})...")
+
+        # Use scaled data with selected features
+        X = self.data_scaled_[self.selected_features_]
+
+        # Create analyzer
+        analyzer = FeatureImportanceAnalyzer(verbose=self.verbose)
+
+        # Run analysis
+        results = analyzer.analyze(
+            X=X,
+            labels=self.labels_,
+            method=method,
+            n_repeats=n_repeats,
+            random_state=random_state
+        )
+
+        # Store results
+        self.feature_importance_results_ = results
+
+        if self.verbose:
+            print("✓ Feature importance analysis completed")
+
+            # Print top features from each method
+            if 'permutation' in results:
+                print("\nTop 5 features (permutation importance):")
+                top = results['permutation'].head(5)
+                for idx, row in top.iterrows():
+                    print(f"  {row['feature']}: {row['importance']:.4f} (±{row['std']:.4f})")
+
+            if 'contribution' in results:
+                print("\nTop 5 features (cluster separation):")
+                top = results['contribution'].head(5)
+                for idx, row in top.iterrows():
+                    print(f"  {row['feature']}: {row['contribution']:.4f}")
+
+        return results
 
     def print_cluster_summary(self) -> None:
         """
