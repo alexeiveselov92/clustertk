@@ -963,6 +963,113 @@ class ClusterAnalysisPipeline:
 
         return results
 
+    def analyze_stability(
+        self,
+        n_iterations: int = 100,
+        sample_fraction: float = 0.8,
+        random_state: Optional[int] = 42
+    ) -> Dict:
+        """
+        Analyze clustering stability using bootstrap resampling.
+
+        This method performs multiple clustering runs on bootstrap samples
+        to assess the stability and reliability of the clustering results.
+
+        Parameters
+        ----------
+        n_iterations : int, default=100
+            Number of bootstrap iterations to perform.
+        sample_fraction : float, default=0.8
+            Fraction of samples to use in each bootstrap iteration.
+        random_state : int or None, default=42
+            Random state for reproducibility.
+
+        Returns
+        -------
+        results : dict
+            Dictionary containing:
+            - 'overall_stability': Overall stability score (0-1)
+            - 'cluster_stability': DataFrame with per-cluster stability
+            - 'sample_confidence': Array with per-sample confidence scores
+            - 'mean_ari': Mean Adjusted Rand Index
+            - 'stable_clusters': List of stable cluster IDs
+            - 'unstable_clusters': List of unstable cluster IDs
+            - 'reference_labels': Reference cluster labels
+
+        Raises
+        ------
+        ValueError
+            If pipeline has not been fitted yet.
+
+        Examples
+        --------
+        >>> pipeline.fit(df, feature_columns=['age', 'income'])
+        >>> results = pipeline.analyze_stability(n_iterations=50)
+        >>> print(f"Overall stability: {results['overall_stability']:.3f}")
+        >>> print(results['cluster_stability'])
+
+        Notes
+        -----
+        - Stability score ranges from 0 to 1 (higher = more stable)
+        - Clusters with stability > 0.7 are considered stable
+        - Clusters with stability < 0.5 are considered unstable
+        - Sample confidence shows how consistently each point is assigned
+          to the same cluster across bootstrap iterations
+        """
+        from clustertk.evaluation import ClusterStabilityAnalyzer
+
+        if self.data_scaled_ is None or self.labels_ is None:
+            raise ValueError("Pipeline must be fitted before analyzing stability")
+
+        # Use the data that was actually used for clustering
+        if self.data_reduced_ is not None:
+            X = self.data_reduced_
+        elif self.selected_features_ is not None:
+            X = self.data_scaled_[self.selected_features_]
+        else:
+            X = self.data_scaled_
+
+        # Create analyzer
+        analyzer = ClusterStabilityAnalyzer(
+            n_iterations=n_iterations,
+            sample_fraction=sample_fraction,
+            random_state=random_state,
+            verbose=self.verbose
+        )
+
+        # Run stability analysis
+        results = analyzer.analyze(X, self._clusterer)
+
+        # Store results
+        self.stability_results_ = results
+        self.stability_analyzer_ = analyzer
+
+        if self.verbose:
+            print("\n=== Stability Analysis Results ===")
+            print(f"Overall stability: {results['overall_stability']:.3f}")
+            print(f"Mean ARI: {results['mean_ari']:.3f}")
+            print(f"\nCluster stability:")
+            print(results['cluster_stability'].to_string(index=False))
+
+            if results['unstable_clusters']:
+                print(f"\n⚠ Warning: {len(results['unstable_clusters'])} unstable clusters detected")
+                print(f"  Cluster IDs: {results['unstable_clusters']}")
+
+            # Sample confidence statistics
+            conf = results['sample_confidence']
+            print(f"\nSample confidence scores:")
+            print(f"  Mean: {np.mean(conf):.3f}")
+            print(f"  Median: {np.median(conf):.3f}")
+            print(f"  Min: {np.min(conf):.3f}")
+            print(f"  Max: {np.max(conf):.3f}")
+
+            unstable_samples = np.sum(conf < 0.5)
+            if unstable_samples > 0:
+                pct = unstable_samples / len(conf) * 100
+                print(f"  Unstable samples (conf < 0.5): {unstable_samples} ({pct:.1f}%)")
+
+        return results
+
     def print_cluster_summary(self) -> None:
         """
         Print a comprehensive summary of all clusters with names and profiles.
