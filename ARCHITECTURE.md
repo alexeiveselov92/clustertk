@@ -736,3 +736,59 @@ def test_missing_value_handler_custom():
 - GPU ускорение (cuML)
 - AutoML для автоподбора параметров
 - Web UI
+
+---
+
+## Performance Optimizations (v0.10.x)
+
+### Critical Optimizations для больших датасетов
+
+Начиная с v0.10.0, библиотека прошла серию критических оптимизаций для работы с большими датасетами (>10k samples).
+
+#### v0.10.0 - Stability Analysis Optimization
+
+**Проблема:** `ClusterStabilityAnalyzer` потреблял 32+ GB памяти на 80k samples → OOM
+
+**Решение:**
+1. **Streaming computation** вместо накопления всех bootstrap results
+2. **Sliding window approach**: хранение только последних 10 iterations вместо 100
+3. **Vectorized operations**: замена nested Python loops на NumPy broadcasting
+4. **Adaptive pair sampling**: для больших кластеров O(k) вместо O(n²)
+
+**Результат:**
+- Memory: 32+ GB → <500 MB (64x reduction)
+- Speed: OOM → 6 seconds for 80k samples (∞ speedup, was crashing)
+- Algorithm complexity: O(n²) → O(n) для большинства операций
+
+#### v0.10.1 - Feature Importance Memory Fix
+
+**Проблема:** `FeatureImportanceAnalyzer` вызывал OOM из-за silhouette_score O(n²) pairwise distances
+
+**Решение:**
+1. **Automatic sampling** для silhouette computation на >10k samples
+2. **Vectorized feature contribution** вместо nested loops
+
+**Результат:**
+- Permutation importance: 51+ GB OOM → 20s for 80k samples
+- Feature contribution: 0.3s → 0.03s (10x faster)
+
+#### v0.10.2 - True NumPy Vectorization
+
+**Проблема:** Feature contribution использовал pandas groupby (не настоящая векторизация)
+
+**Решение:**
+1. **Pure NumPy bincount** вместо pandas groupby
+2. **No intermediate DataFrame creation**
+3. **True vectorization** без hidden loops
+
+**Результат:**
+- Performance: 0.0165s → 0.0134s (1.23x faster)
+- Чистый NumPy C-level код без pandas overhead
+
+### Ключевые принципы оптимизации
+
+1. **Streaming computation**: не храним все промежуточные результаты
+2. **Vectorization**: используем NumPy broadcasting вместо Python loops
+3. **Adaptive algorithms**: разные стратегии для малых и больших датасетов
+4. **Memory-aware**: учитываем O(n²) алгоритмы и применяем sampling
+5. **Pure NumPy**: избегаем pandas overhead где возможно

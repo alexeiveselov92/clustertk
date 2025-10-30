@@ -11,7 +11,11 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.8.0
+- **Latest Version:** v0.10.2 (2025-10-30)
+- **Recent Major Updates:**
+  - v0.10.2 - True NumPy vectorization (1.23x faster feature contribution)
+  - v0.10.1 - Feature importance memory fix (OOM → 20s on 80k samples)
+  - v0.10.0 - Stability analysis optimization (64x memory reduction, 100-1000x speedup)
 
 ### ✅ Полностью реализовано:
 
@@ -226,6 +230,21 @@ OptimalKFinder использует голосование трех метрик
 - **v0.6.0** - создана docs/ структура, сокращен README, полная документация
 - **v0.7.0** - добавлен compare_algorithms() для автоматического сравнения алгоритмов
 - **v0.8.0** - добавлены HDBSCAN алгоритм и полный Test Suite (39 тестов, 39% coverage)
+- **v0.9.0** - Feature Importance & Stability Analysis (permutation, SHAP, contribution, bootstrap stability)
+- **v0.10.0** - MAJOR OPTIMIZATION: Stability Analysis для больших датасетов
+  - Полная переработка ClusterStabilityAnalyzer с streaming computation
+  - Memory: 32+ GB OOM → <500 MB (64x reduction)
+  - Speed: OOM → 6 seconds for 80k samples (100-1000x speedup)
+  - Sliding window approach, vectorized operations, adaptive sampling
+- **v0.10.1** - CRITICAL FIX: Feature Importance memory issues на больших датасетах
+  - Permutation importance OOM fix: silhouette sampling для >10k samples
+  - Memory: 51+ GB OOM → ~2 GB (25x reduction)
+  - Speed: OOM → 20 seconds for 80k samples
+  - Feature contribution vectorization: 10x speedup
+- **v0.10.2** - True NumPy Vectorization для Feature Contribution
+  - Replaced pandas groupby with pure NumPy bincount
+  - Performance: 1.23x faster (0.0165s → 0.0134s on 80k samples)
+  - True vectorization without hidden loops or pandas overhead
 
 ## Контакты автора
 

@@ -1,9 +1,12 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.10.1 🚀
+## Текущий статус: v0.10.2 🚀
 
-**Latest Release:** v0.10.1 - https://pypi.org/project/clustertk/0.10.1/
-**Previous:** v0.10.0 - Major stability analysis optimization
+**Latest Release:** v0.10.2 - https://pypi.org/project/clustertk/0.10.2/
+**Recent Releases:**
+- v0.10.2 (2025-10-30) - True NumPy vectorization
+- v0.10.1 (2025-10-30) - Feature importance memory fix
+- v0.10.0 (2025-10-30) - Stability analysis optimization
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
 ## ✅ Что завершено
@@ -220,6 +223,33 @@
    - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.10.1/
    - [x] Git commit and tag v0.10.1 pushed
    - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.10.1
+
+---
+
+## ✅ v0.10.2 - True NumPy Vectorization (Completed!)
+
+### Performance Improvement ✅
+   - [x] **Feature Contribution True Vectorization**
+     - [x] Replaced pandas groupby with pure NumPy bincount
+     - [x] Performance: 0.0165s → 0.0134s (1.23x faster on 80k samples)
+     - [x] Benefits:
+       - True vectorization without hidden loops
+       - No pandas DataFrame creation overhead
+       - Pure NumPy C-level operations
+     - [x] All 21 unit tests pass (77% coverage)
+
+### Technical Details ✅
+   - [x] Identified issue: pandas groupby is not true vectorization
+   - [x] Implemented np.bincount for cluster statistics computation
+   - [x] Benchmarked three approaches: pandas, NumPy list comprehension, NumPy bincount
+   - [x] Winner: NumPy bincount (1.23x faster than pandas)
+
+### Release ✅
+   - [x] Version bump to 0.10.2 (setup.py, pyproject.toml)
+   - [x] CHANGELOG.md updated
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.10.2/
+   - [x] Git commit and tag v0.10.2 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.10.2
 
 ---
 
