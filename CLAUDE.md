@@ -11,8 +11,9 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.14.5 (2025-10-30)
+- **Latest Version:** v0.15.0 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.15.0 - **MAJOR FEATURE**: Flexible dimensionality reduction (PCA/UMAP/None) with smart auto-mode for each algorithm
   - v0.14.5 - Bugfix: Fixed IndexError in plot_clusters_2d() for HDBSCAN/DBSCAN with noise points
   - v0.14.4 - Bugfix: Fixed 'top_n_features' error in heatmap generation (use feature slicing instead)
   - v0.14.3 - UX improvements: removed step numbers, fixed cluster config display, normalization note, importance highlighting

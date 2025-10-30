@@ -194,8 +194,13 @@ class ClusterAnalysisPipeline:
         smart_correlation: bool = True,
         correlation_strategy: Literal['hopkins', 'variance_ratio', 'mean_corr'] = 'hopkins',
         # Dimensionality reduction parameters
+        dim_reduction: Literal['auto', 'pca', 'umap', 'none'] = 'auto',
         pca_variance: float = 0.9,
         pca_min_components: int = 2,
+        umap_n_neighbors: int = 30,
+        umap_min_dist: float = 0.1,
+        umap_n_components: int = 10,
+        umap_metric: str = 'euclidean',
         # Clustering parameters
         clustering_algorithm: Union[str, object] = 'kmeans',
         n_clusters: Optional[Union[int, List[int]]] = None,
@@ -221,8 +226,13 @@ class ClusterAnalysisPipeline:
         self.variance_threshold = variance_threshold
         self.smart_correlation = smart_correlation
         self.correlation_strategy = correlation_strategy
+        self.dim_reduction = dim_reduction
         self.pca_variance = pca_variance
         self.pca_min_components = pca_min_components
+        self.umap_n_neighbors = umap_n_neighbors
+        self.umap_min_dist = umap_min_dist
+        self.umap_n_components = umap_n_components
+        self.umap_metric = umap_metric
         self.clustering_algorithm = clustering_algorithm
         self.n_clusters = n_clusters
         self.n_clusters_range = n_clusters_range
@@ -252,7 +262,7 @@ class ClusterAnalysisPipeline:
         self._transformer = None
         self._correlation_filter = None
         self._variance_filter = None
-        self._pca_reducer = None
+        self._reducer = None  # Can be PCAReducer, UMAP, or None
         self._clusterer = None
         self._profiler = None
         self._namer = None
@@ -575,32 +585,103 @@ class ClusterAnalysisPipeline:
 
     def reduce_dimensions(self) -> 'ClusterAnalysisPipeline':
         """
-        Reduce dimensionality using PCA.
+        Reduce dimensionality using PCA, UMAP, or no reduction.
+
+        The method used is determined by dim_reduction parameter:
+        - 'auto': Automatic selection based on algorithm and number of features
+        - 'pca': Principal Component Analysis (linear, preserves global structure)
+        - 'umap': Uniform Manifold Approximation (non-linear, preserves local structure)
+        - 'none': No dimensionality reduction
 
         Returns
         -------
         self : ClusterAnalysisPipeline
         """
+        initial_dims = len(self.selected_features_)
+
+        # Determine reduction method
+        reduction_method = self._determine_reduction_method(initial_dims)
+
+        if reduction_method == 'none':
+            if self.verbose:
+                print("\n📐 Skipping dimensionality reduction")
+                print(f"  Keeping all {initial_dims} features")
+            # Use scaled data directly
+            self.data_reduced_ = self.data_scaled_[self.selected_features_].copy()
+            self._reducer = None
+            return self
+
+        elif reduction_method == 'pca':
+            return self._reduce_with_pca(initial_dims)
+
+        elif reduction_method == 'umap':
+            return self._reduce_with_umap(initial_dims)
+
+        else:
+            raise ValueError(f"Unknown reduction method: {reduction_method}")
+
+    def _determine_reduction_method(self, n_features: int) -> str:
+        """
+        Determine which dimensionality reduction method to use.
+
+        Parameters
+        ----------
+        n_features : int
+            Number of features after feature selection
+
+        Returns
+        -------
+        method : str
+            One of 'pca', 'umap', 'none'
+        """
+        if self.dim_reduction != 'auto':
+            return self.dim_reduction
+
+        # Auto-mode logic
+        algorithm = self.clustering_algorithm
+        if isinstance(algorithm, str):
+            algo_lower = algorithm.lower()
+        else:
+            algo_lower = algorithm.__class__.__name__.lower()
+
+        # Density-based algorithms (DBSCAN, HDBSCAN)
+        if any(name in algo_lower for name in ['dbscan', 'hdbscan']):
+            if n_features > 30:
+                method = 'umap'  # UMAP preserves local density
+            else:
+                method = 'none'  # Work in original space
+
+        # Distance-based algorithms (K-Means, GMM, Hierarchical)
+        else:
+            if n_features > 50:
+                method = 'pca'   # PCA for high-dimensional data
+            else:
+                method = 'none'  # No reduction needed
+
+        if self.verbose:
+            print(f"  Auto-selected dim_reduction='{method}' (algorithm={algorithm}, n_features={n_features})")
+
+        return method
+
+    def _reduce_with_pca(self, initial_dims: int) -> 'ClusterAnalysisPipeline':
+        """Apply PCA reduction."""
         from clustertk.dimensionality import PCAReducer
 
         if self.verbose:
             print("\n📐 Reducing dimensions with PCA...")
 
-        initial_dims = len(self.selected_features_)
-
-        # Apply PCA
-        self._pca_reducer = PCAReducer(
+        self._reducer = PCAReducer(
             variance_threshold=self.pca_variance,
             min_components=self.pca_min_components,
             random_state=self.random_state
         )
 
-        self.data_reduced_ = self._pca_reducer.fit_transform(
+        self.data_reduced_ = self._reducer.fit_transform(
             self.data_scaled_[self.selected_features_]
         )
 
         final_dims = self.data_reduced_.shape[1]
-        variance_explained = self._pca_reducer.cumulative_variance_[final_dims - 1]
+        variance_explained = self._reducer.cumulative_variance_[final_dims - 1]
 
         if self.verbose:
             print(f"  Dimensionality: {initial_dims} → {final_dims} components")
@@ -609,11 +690,56 @@ class ClusterAnalysisPipeline:
             # Show top loadings for first 2 components
             if final_dims >= 2:
                 print(f"  Top features in PC1:")
-                loadings = self._pca_reducer.get_loadings(n_top=3)
+                loadings = self._reducer.get_loadings(n_top=3)
                 for feature, loading in loadings['PC1']:
                     sign = '+' if loading > 0 else ''
                     print(f"    {sign}{loading:.3f} {feature}")
 
+            print("  ✓ Dimensionality reduction completed")
+
+        return self
+
+    def _reduce_with_umap(self, initial_dims: int) -> 'ClusterAnalysisPipeline':
+        """Apply UMAP reduction."""
+        try:
+            import umap
+        except ImportError:
+            raise ImportError(
+                "UMAP not installed. Install with: pip install umap-learn\n"
+                "Or use dim_reduction='pca' or dim_reduction='none' instead."
+            )
+
+        if self.verbose:
+            print("\n📐 Reducing dimensions with UMAP...")
+            print(f"  Parameters: n_neighbors={self.umap_n_neighbors}, "
+                  f"n_components={self.umap_n_components}, "
+                  f"min_dist={self.umap_min_dist}")
+
+        self._reducer = umap.UMAP(
+            n_neighbors=self.umap_n_neighbors,
+            min_dist=self.umap_min_dist,
+            n_components=self.umap_n_components,
+            metric=self.umap_metric,
+            random_state=self.random_state,
+            verbose=False
+        )
+
+        embedding = self._reducer.fit_transform(
+            self.data_scaled_[self.selected_features_].values
+        )
+
+        # Convert to DataFrame with proper column names
+        self.data_reduced_ = pd.DataFrame(
+            embedding,
+            columns=[f'UMAP{i+1}' for i in range(embedding.shape[1])],
+            index=self.data_scaled_.index
+        )
+
+        final_dims = self.data_reduced_.shape[1]
+
+        if self.verbose:
+            print(f"  Dimensionality: {initial_dims} → {final_dims} components")
+            print("  ⚠️  UMAP is non-linear - component interpretation not available")
             print("  ✓ Dimensionality reduction completed")
 
         return self
@@ -1543,12 +1669,16 @@ class ClusterAnalysisPipeline:
                 "Install with: pip install clustertk[viz]"
             )
 
-        if self._pca_reducer is None:
-            raise ValueError("No PCA results available. Run fit() or reduce_dimensions() first.")
+        if self._reducer is None or not hasattr(self._reducer, 'explained_variance_'):
+            raise ValueError(
+                "No PCA results available. Either:\n"
+                "  1. Run fit() or reduce_dimensions() first\n"
+                "  2. Use dim_reduction='pca' (current: dim_reduction='{}')".format(self.dim_reduction)
+            )
 
         return plot_pca_variance(
-            explained_variance_ratio=self._pca_reducer.explained_variance_,
-            cumulative_variance=self._pca_reducer.cumulative_variance_,
+            explained_variance_ratio=self._reducer.explained_variance_,
+            cumulative_variance=self._reducer.cumulative_variance_,
             threshold=threshold or self.pca_variance,
             title=title,
             figsize=figsize,
@@ -1593,13 +1723,17 @@ class ClusterAnalysisPipeline:
                 "Install with: pip install clustertk[viz]"
             )
 
-        if self._pca_reducer is None:
-            raise ValueError("No PCA results available. Run fit() or reduce_dimensions() first.")
+        if self._reducer is None or not hasattr(self._reducer, 'loadings_'):
+            raise ValueError(
+                "No PCA results available. Either:\n"
+                "  1. Run fit() or reduce_dimensions() first\n"
+                "  2. Use dim_reduction='pca' (current: dim_reduction='{}')".format(self.dim_reduction)
+            )
 
         # Get loadings as DataFrame
         loadings_df = pd.DataFrame(
-            self._pca_reducer.loadings_,
-            columns=[f'PC{i+1}' for i in range(self._pca_reducer.loadings_.shape[1])],
+            self._reducer.loadings_,
+            columns=[f'PC{i+1}' for i in range(self._reducer.loadings_.shape[1])],
             index=self.selected_features_
         )
 
