@@ -184,11 +184,15 @@
    - [x] Backward compatible API (no breaking changes)
 
 ### Release ✅
-   - [x] Version bump to 0.10.0
+   - [x] Version bump to 0.10.0 (setup.py, pyproject.toml)
    - [x] CHANGELOG.md updated with detailed technical info
    - [x] TODO.md updated
-   - [ ] Build and publish to PyPI
-   - [ ] Create GitHub Release
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.10.0/
+   - [x] Git commit and tag v0.10.0 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.10.0
+     - Title: "v0.10.0 - Major Performance Optimization for Large Datasets"
+     - Copy release notes from commit message or PyPI page
+     - Attach: dist/clustertk-0.10.0-py3-none-any.whl, dist/clustertk-0.10.0.tar.gz
 
 ---
 
