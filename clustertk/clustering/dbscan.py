@@ -212,6 +212,18 @@ class DBSCANClustering(BaseClusterer):
         # Count noise points
         self.n_noise_points_ = np.sum(self.labels_ == -1)
 
+        # Warn if too few clusters found
+        if self.n_clusters_ < 2:
+            import warnings
+            warnings.warn(
+                f"DBSCAN found only {self.n_clusters_} cluster(s) "
+                f"with {self.n_noise_points_}/{len(X)} ({self.n_noise_points_/len(X)*100:.1f}%) noise points. "
+                f"Parameters used: eps={self._eps_computed:.4f}, min_samples={self._min_samples_computed}. "
+                f"Consider: (1) Increasing eps, (2) Decreasing min_samples, "
+                f"(3) Using HDBSCAN for automatic parameter selection.",
+                UserWarning
+            )
+
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:

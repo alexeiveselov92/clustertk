@@ -254,6 +254,19 @@ class HDBSCANClustering(BaseClusterer):
                 if cluster_id >= 0
             }
 
+        # Warn if too few clusters found
+        if self.n_clusters_ < 2:
+            import warnings
+            warnings.warn(
+                f"HDBSCAN found only {self.n_clusters_} cluster(s) "
+                f"with {self.n_noise_points_}/{len(X)} ({self.n_noise_points_/len(X)*100:.1f}%) noise points. "
+                f"Parameters used: min_cluster_size={self._min_cluster_size_computed}, "
+                f"min_samples={self._min_samples_computed}. "
+                f"Consider: (1) Decreasing min_cluster_size, (2) Using cluster_selection_method='leaf', "
+                f"(3) Checking if data is too homogeneous.",
+                UserWarning
+            )
+
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:

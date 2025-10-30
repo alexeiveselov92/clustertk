@@ -167,7 +167,26 @@ def compute_clustering_metrics(
     # Check if we have at least 2 clusters (excluding noise)
     n_clusters = len(np.unique(labels_filtered))
     if n_clusters < 2:
-        raise ValueError("Need at least 2 clusters to compute metrics")
+        import warnings
+        warnings.warn(
+            f"Only {n_clusters} cluster(s) found (excluding noise). "
+            f"Cannot compute clustering metrics. "
+            f"This often happens with HDBSCAN/DBSCAN when parameters are too strict. "
+            f"Returning NaN metrics.",
+            UserWarning
+        )
+        # Return default metrics with NaN values
+        default_metrics = {
+            'silhouette': np.nan,
+            'calinski_harabasz': np.nan,
+            'davies_bouldin': np.nan,
+        }
+        # Add noise stats if requested
+        if include_noise_stats and has_noise:
+            default_metrics['n_noise'] = int(n_noise)
+            default_metrics['noise_ratio'] = float(n_noise / len(labels))
+
+        return default_metrics
 
     metrics = {}
 
