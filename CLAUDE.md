@@ -11,15 +11,15 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.13.0 (2025-10-30)
+- **Latest Version:** v0.14.1 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.14.1 - Configurable report_top_features parameter (safe handling for small datasets)
+  - v0.14.0 - Multivariate Outlier Detection + Enhanced HTML Reports
   - v0.13.0 - **BREAKING CHANGE**: Default `handle_outliers` changed from `'robust'` to `'winsorize'`
   - v0.12.1 - Winsorize: Percentile-based outlier handling (recommended for univariate outliers)
   - v0.12.0 - Algorithm Parameters & Noise Point Tracking
   - v0.11.1 - SHAP multidimensional array fix
   - v0.11.0 - Smart Feature Selection & Cluster Balance
-  - v0.10.2 - True NumPy vectorization (1.23x faster feature contribution)
-  - v0.10.1 - Feature importance memory fix (OOM → 20s on 80k samples)
 
 ### ✅ Полностью реализовано:
 

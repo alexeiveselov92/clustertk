@@ -114,6 +114,10 @@ class ClusterAnalysisPipeline:
     naming_max_features : int, default=2
         Maximum number of features to include in cluster names.
 
+    report_top_features : int, default=5
+        Number of top distinguishing features to show per cluster in HTML reports.
+        Will be automatically adjusted if fewer features are available.
+
     random_state : int, default=42
         Random state for reproducibility.
 
@@ -204,6 +208,8 @@ class ClusterAnalysisPipeline:
         # Naming parameters
         auto_name_clusters: bool = False,
         naming_max_features: int = 2,
+        # Report parameters
+        report_top_features: int = 5,
         # General parameters
         random_state: int = 42,
         verbose: bool = True
@@ -229,6 +235,7 @@ class ClusterAnalysisPipeline:
         self.clustering_params = clustering_params or {}
         self.auto_name_clusters = auto_name_clusters
         self.naming_max_features = naming_max_features
+        self.report_top_features = report_top_features
         self.random_state = random_state
         self.verbose = verbose
 
@@ -2129,7 +2136,11 @@ class ClusterAnalysisPipeline:
 
         # Get top features for each cluster
         if hasattr(self, '_profiler') and self._profiler is not None:
-            top_features = self._profiler.get_top_features(n=5)
+            # Safe calculation: adjust n based on available features
+            n_available_features = len(self.cluster_profiles_.columns)
+            n_top = min(self.report_top_features, n_available_features)
+
+            top_features = self._profiler.get_top_features(n=n_top)
 
             for cluster_id in sorted(self.cluster_profiles_.index):
                 cluster_name = self.cluster_names_.get(cluster_id, f'Cluster {cluster_id}') if self.cluster_names_ else f'Cluster {cluster_id}'
@@ -2140,20 +2151,20 @@ class ClusterAnalysisPipeline:
                 if cluster_id in top_features:
                     features = top_features[cluster_id]
 
-                    # High features
+                    # High features - show all n_top features
                     html_parts.append('<strong class="feature-high">⬆ Highest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
-                    for feat_name, deviation in features['high'][:3]:  # Top 3
+                    for feat_name, deviation in features['high'][:n_top]:
                         profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
                         html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
                                         f'<span class="feature-value">{profile_value:.3f}</span> '
                                         f'<span class="badge badge-success">+{deviation:.3f}</span></li>')
                     html_parts.append('</ul>')
 
-                    # Low features
+                    # Low features - show all n_top features
                     html_parts.append('<strong class="feature-low">⬇ Lowest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
-                    for feat_name, deviation in features['low'][:3]:  # Top 3
+                    for feat_name, deviation in features['low'][:n_top]:
                         profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
                         html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
                                         f'<span class="feature-value">{profile_value:.3f}</span> '
@@ -2226,13 +2237,17 @@ class ClusterAnalysisPipeline:
                     top_features_radar = None
                     if hasattr(self, '_profiler') and self._profiler is not None:
                         try:
-                            top_feats = self._profiler.get_top_features(n=8)  # Top 8 for radar
+                            # Safe calculation: adjust n based on available features
+                            n_available_features = len(self.cluster_profiles_.columns)
+                            n_radar = min(self.report_top_features * 2, n_available_features)  # More features for radar
+
+                            top_feats = self._profiler.get_top_features(n=n_radar)
                             # Collect all unique top features across clusters
                             all_top_features = set()
                             for cluster_features in top_feats.values():
-                                all_top_features.update([f[0] for f in cluster_features['high'][:4]])
-                                all_top_features.update([f[0] for f in cluster_features['low'][:4]])
-                            top_features_radar = list(all_top_features)[:10]  # Max 10 features
+                                all_top_features.update([f[0] for f in cluster_features['high'][:n_radar//2]])
+                                all_top_features.update([f[0] for f in cluster_features['low'][:n_radar//2]])
+                            top_features_radar = list(all_top_features)[:min(10, n_available_features)]  # Max 10 features or less
                         except:
                             top_features_radar = None
 
