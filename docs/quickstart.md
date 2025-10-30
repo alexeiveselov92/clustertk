@@ -151,7 +151,7 @@ from clustertk import ClusterAnalysisPipeline
 # Configure for anomaly detection
 pipeline = ClusterAnalysisPipeline(
     clustering_algorithm='dbscan',  # Density-based clustering
-    handle_outliers='robust',
+    handle_outliers='winsorize',    # Default, removes extreme outliers
     scaling='standard'
 )
 
@@ -181,7 +181,7 @@ pipeline = ClusterAnalysisPipeline(
         'min_cluster_size': 50,    # Minimum cluster size
         'min_samples': 10          # Core points threshold
     },
-    handle_outliers='robust',
+    handle_outliers='winsorize',   # Default, clips extreme outliers
     scaling='standard'
 )
 
@@ -229,12 +229,18 @@ print(comparison)
 ```python
 pipeline = ClusterAnalysisPipeline(
     handle_missing='median',          # 'median', 'mean', 'drop', or callable
-    handle_outliers='robust',         # 'robust', 'clip', 'remove', or None
+    handle_outliers='winsorize',      # 'winsorize' (RECOMMENDED), 'robust', 'clip', 'remove', None
     scaling='robust',                 # 'standard', 'robust', 'minmax', 'auto'
     log_transform_skewed=True,        # Apply log transform to skewed features
     skewness_threshold=2.0            # Threshold for skewness detection
 )
 ```
+
+**Outlier Handling (v0.13.0+):**
+- `'winsorize'` (default): Clips outliers to 2.5%-97.5% percentiles **before** scaling. Best for extreme outliers.
+- `'robust'`: Uses RobustScaler only. WARNING: Outliers remain after scaling, may create tiny clusters!
+- `'clip'`: Clips to IQR bounds before scaling
+- `'remove'`: Removes rows with outliers (data loss)
 
 ### Feature Selection
 

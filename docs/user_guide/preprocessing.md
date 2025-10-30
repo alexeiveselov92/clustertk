@@ -42,37 +42,119 @@ pipeline = ClusterAnalysisPipeline(handle_missing=custom_imputer)
 
 ## Outlier Handling
 
+**IMPORTANT (v0.13.0+):** The default outlier handling strategy has changed from `'robust'` to `'winsorize'` for better clustering results.
+
+### Why Outlier Handling Matters
+
+**Common Problem:** K-Means creates 1 huge cluster (90%+) + several tiny clusters (1-2% each).
+
+**Root Cause:** Even after scaling, outliers remain far away from normal points:
+```python
+# Example: revenue = [100, 150, 200, 10000]
+# After RobustScaler: [0.0, 0.5, 1.0, 98.0]
+# Outlier is still 98x away from normal points!
+# K-Means sees: "cluster of normal points" + "isolated outlier"
+```
+
+**Solution:** Remove or clip outliers **before** scaling.
+
 ### Strategies
 
-**Robust Scaling** (default): Uses RobustScaler which is resistant to outliers
+**Winsorize** (default, RECOMMENDED): Clips outliers to percentiles before scaling
+```python
+pipeline = ClusterAnalysisPipeline(handle_outliers='winsorize')  # Default since v0.13.0
+
+# How it works:
+# 1. Clip values to 2.5%-97.5% percentile range (removes 5% total)
+# 2. Then apply scaling
+# 3. Clustering works on properly bounded data
+#
+# Best for: Extreme outliers (10-50x), asymmetric distributions
+```
+
+**Robust Scaling** (old default): Uses RobustScaler only
 ```python
 pipeline = ClusterAnalysisPipeline(handle_outliers='robust')
+
+# WARNING: This does NOT remove outliers!
+# Outliers remain far away after scaling → tiny clusters
+# Use only when you WANT to detect outliers as separate clusters
 ```
 
-**Clipping**: Caps outliers at IQR boundaries
+**Clipping**: Caps outliers at IQR boundaries before scaling
 ```python
 pipeline = ClusterAnalysisPipeline(handle_outliers='clip')
+
+# How it works:
+# Lower bound = Q1 - 1.5 × IQR
+# Upper bound = Q3 + 1.5 × IQR
+#
+# Problem: Multiple extreme outliers clip to SAME boundary value
+# Example: [10000, 12000, 15000] → all become 875
 ```
 
-**Removal**: Removes rows with outliers
+**Removal**: Removes rows with outliers (data loss)
 ```python
 pipeline = ClusterAnalysisPipeline(handle_outliers='remove')
+
+# Good when: <5% outliers, you want to discard them completely
+# Bad when: >10% outliers, too much data loss
 ```
 
 **None**: No outlier handling
 ```python
 pipeline = ClusterAnalysisPipeline(handle_outliers=None)
+
+# Only use when: Data is already clean or outliers are meaningful
 ```
 
-### How It Works
+### Execution Order
 
-ClusterTK uses IQR (Interquartile Range) method:
+ClusterTK applies outlier handling in the correct order:
 ```
-Lower bound = Q1 - 1.5 × IQR
-Upper bound = Q3 + 1.5 × IQR
+1. Winsorize/Clip/Remove outliers → bounds extreme values
+2. Apply StandardScaler/RobustScaler → normalizes scale
+3. K-Means clustering → works on clean, bounded data
 ```
 
-Values outside these bounds are considered outliers.
+**Why This Matters:**
+- StandardScaler and RobustScaler don't remove outliers
+- They only normalize the scale
+- Outliers remain far away after scaling
+- K-Means creates tiny clusters for these distant points
+
+### Comparison
+
+| Method | Outliers Removed? | Data Loss? | Best For |
+|--------|------------------|-----------|----------|
+| **winsorize** | ✅ Clipped to percentiles | ❌ No | **RECOMMENDED** for most cases |
+| robust | ❌ Remains far away | ❌ No | When outliers = separate clusters |
+| clip | ⚠️ Clipped to IQR | ❌ No | Mild outliers |
+| remove | ✅ Rows deleted | ✅ Yes | <5% outliers, can discard |
+
+### Example: Impact on Clustering
+
+```python
+import pandas as pd
+import numpy as np
+from clustertk import ClusterAnalysisPipeline
+
+# Data with 3 clear clusters + 3 extreme outliers
+data = pd.DataFrame({
+    'revenue': [100, 150, 200] * 30 + [10000, 12000, 15000],  # 3 outliers
+    'age': [25, 35, 45] * 30 + [200, 250, 300]
+})
+
+# ❌ BAD: Using 'robust' (outliers remain)
+pipeline_robust = ClusterAnalysisPipeline(handle_outliers='robust', n_clusters=3)
+pipeline_robust.fit(data)
+# Result: [88, 1, 4] - One outlier gets own cluster, others grouped
+
+# ✅ GOOD: Using 'winsorize' (default)
+pipeline_wins = ClusterAnalysisPipeline(handle_outliers='winsorize', n_clusters=3)
+pipeline_wins.fit(data)
+# Result: [30, 30, 33] - Balanced clusters, outliers clipped
+```
 
 ## Scaling
 

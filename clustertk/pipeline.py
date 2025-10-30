@@ -40,13 +40,16 @@ class ClusterAnalysisPipeline:
         Strategy for handling missing values.
         Options: 'median', 'mean', 'drop', or a custom function.
 
-    handle_outliers : str or None, default='robust'
-        Strategy for handling outliers.
+    handle_outliers : str or None, default='winsorize'
+        Strategy for handling outliers before scaling.
         Options:
-        - 'robust': Use RobustScaler (ignores outliers during scaling)
+        - 'winsorize': Clip to percentile bounds (RECOMMENDED, default since v0.13.0)
+          Clips outliers to 2.5%-97.5% percentiles before scaling.
+          Best for extreme/asymmetric outliers. Works with any distribution.
+        - 'robust': Use RobustScaler only (no outlier removal)
+          WARNING: Outliers remain far away after scaling, may create tiny clusters!
         - 'clip': Clip outliers to IQR bounds before scaling
-        - 'winsorize': Clip to percentile bounds (recommended, v0.13.0+)
-        - 'remove': Remove rows with outliers
+        - 'remove': Remove rows with outliers (data loss)
         - None: No outlier handling
 
     scaling : str, default='robust'
@@ -157,7 +160,7 @@ class ClusterAnalysisPipeline:
         self,
         # Preprocessing parameters
         handle_missing: Union[str, Callable] = 'median',
-        handle_outliers: Optional[str] = 'robust',
+        handle_outliers: Optional[str] = 'winsorize',
         scaling: str = 'robust',
         log_transform_skewed: bool = False,
         skewness_threshold: float = 2.0,

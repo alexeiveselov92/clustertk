@@ -11,8 +11,9 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.12.1 (2025-10-30)
+- **Latest Version:** v0.13.0 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.13.0 - **BREAKING CHANGE**: Default `handle_outliers` changed from `'robust'` to `'winsorize'`
   - v0.12.1 - Winsorize: Percentile-based outlier handling (recommended for univariate outliers)
   - v0.12.0 - Algorithm Parameters & Noise Point Tracking
   - v0.11.1 - SHAP multidimensional array fix
@@ -22,15 +23,16 @@ ClusterTK - это Python библиотека для полного пайпл�
 
 ### ✅ Полностью реализовано:
 
-1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0, v0.12.1)
+1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0, v0.12.1, v0.13.0)
    - MissingValueHandler - обработка пропусков (median/mean/drop/custom)
    - OutlierHandler - UNIVARIATE outlier handling:
      - Methods: IQR, z-score, modified z-score, percentile
-     - Actions: clip, remove, nan, winsorize (v0.12.1, recommended)
-     - Winsorize: Percentile-based clipping (default 2.5%-97.5%, ~2-sigma)
+     - Actions: clip, remove, nan, winsorize (v0.12.1)
+     - **Winsorize: DEFAULT since v0.13.0** (Percentile 2.5%-97.5%, ~2-sigma)
+     - Pipeline: `handle_outliers='winsorize'` теперь дефолт
    - ScalerSelector - автовыбор скейлера (Standard/Robust/MinMax)
    - SkewnessTransformer - log/sqrt/box-cox трансформации
-   - ⚠️ **TODO v0.13.0:** MultivariateOutlierDetector - IsolationForest/LOF/EllipticEnvelope для детекции outliers в многомерном пространстве
+   - ⚠️ **TODO v0.14.0:** MultivariateOutlierDetector - IsolationForest/LOF/EllipticEnvelope для детекции outliers в многомерном пространстве
 
 2. **Feature Selection** - полностью готово (v0.1.0, v0.11.0)
    - CorrelationFilter - удаление сильно коррелирующих признаков
@@ -361,6 +363,13 @@ pipeline = ClusterAnalysisPipeline(
   - Solves: IQR artifacts (multiple extreme values → same clipped value)
   - Pipeline: handle_outliers='winsorize' now available
   - Better than 'clip' for extreme/asymmetric outliers
+- **v0.13.0** - **BREAKING CHANGE**: Winsorize is Now Default
+  - Changed default `handle_outliers` from `'robust'` to `'winsorize'`
+  - **Why**: RobustScaler doesn't remove outliers, they remain far away after scaling
+  - Problem solved: K-Means creating 1 huge cluster (90%+) + tiny outlier clusters
+  - Execution order: Winsorize → Scaling → Clustering (correct!)
+  - Documentation: Updated all examples and user guide
+  - Migration: If you want old behavior, explicitly set `handle_outliers='robust'`
 
 ## Контакты автора
 
