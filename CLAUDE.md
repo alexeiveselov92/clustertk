@@ -266,7 +266,7 @@ pipeline = ClusterAnalysisPipeline(
 - Нет потери данных (rows сохраняются)
 - Хорошо работает с асимметричными outliers
 
-**Важно:** Winsorize решает UNIVARIATE outliers (per-feature). Для MULTIVARIATE outliers (выбросы в многомерном пространстве) нужен MultivariateOutlierDetector (планируется v0.13.0).
+**Важно:** Winsorize решает UNIVARIATE outliers (per-feature). Для MULTIVARIATE outliers (выбросы в многомерном пространстве) нужен MultivariateOutlierDetector (планируется v0.14.0).
 
 **КРИТИЧНО: Почему StandardScaler/RobustScaler НЕ решают проблему выбросов?**
 
@@ -316,6 +316,60 @@ pipeline = ClusterAnalysisPipeline(
 # ❌ НЕПРАВИЛЬНО (старый default):
 pipeline = ClusterAnalysisPipeline(
     handle_outliers='robust',  # Только RobustScaler, выбросы остаются!
+)
+```
+
+### 7. Log-трансформация и выбросы
+
+**Вопрос:** Решает ли log-трансформация проблему с выбросами?
+
+**Короткий ответ: НЕТ, log только СЖИМАЕТ выбросы, но не удаляет их.**
+
+**Что делает log:**
+```python
+# Пример: revenue = [100, 200, 300, 10000]
+# После log1p:
+#   100 → 4.62
+#   200 → 5.30
+#   300 → 5.71
+#   10000 → 9.21
+#
+# Разница БЕЗ log: 10000/200 = 50x
+# Разница С log: 9.21/5.30 = 1.7x (лучше, но выброс остается!)
+```
+
+**Когда log ПОЛЕЗЕН:**
+- Скошенные данные БЕЗ экстремальных выбросов (skewness > 2.0)
+- Log-normal распределения → становятся нормальными
+- Помогает K-Means лучше работать с расстояниями
+
+**Когда log ВРЕДЕН:**
+- Нормальные данные (skewness < 1.0)
+- Искажает естественное распределение
+- Ухудшает качество кластеризации
+
+**Execution order в Pipeline (правильный!):**
+```
+1. Missing values → handle NaN
+2. Log transform → normalize skewness (if log_transform_skewed=True)
+3. Winsorize → clip remaining outliers to percentiles
+4. Scaling → normalize scale
+5. K-Means → clustering on clean data
+```
+
+**Рекомендация:**
+```python
+# Для скошенных данных с выбросами:
+pipeline = ClusterAnalysisPipeline(
+    log_transform_skewed=True,       # Нормализует skewness
+    skewness_threshold=2.0,          # Default
+    handle_outliers='winsorize',     # Обрезает выбросы (дефолт v0.13.0)
+)
+
+# Для нормальных данных с выбросами:
+pipeline = ClusterAnalysisPipeline(
+    log_transform_skewed=False,      # НЕ применять log! (default)
+    handle_outliers='winsorize',     # Только winsorize (default)
 )
 ```
 
