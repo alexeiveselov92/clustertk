@@ -11,8 +11,9 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.12.0 (2025-10-30)
+- **Latest Version:** v0.12.1 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.12.1 - Winsorize: Percentile-based outlier handling (recommended for univariate outliers)
   - v0.12.0 - Algorithm Parameters & Noise Point Tracking
   - v0.11.1 - SHAP multidimensional array fix
   - v0.11.0 - Smart Feature Selection & Cluster Balance
@@ -21,9 +22,12 @@ ClusterTK - это Python библиотека для полного пайпл�
 
 ### ✅ Полностью реализовано:
 
-1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0)
+1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0, v0.12.1)
    - MissingValueHandler - обработка пропусков (median/mean/drop/custom)
-   - OutlierHandler - детекция и обработка выбросов (IQR/z-score/modified z-score) - UNIVARIATE
+   - OutlierHandler - UNIVARIATE outlier handling:
+     - Methods: IQR, z-score, modified z-score, percentile
+     - Actions: clip, remove, nan, winsorize (v0.12.1, recommended)
+     - Winsorize: Percentile-based clipping (default 2.5%-97.5%, ~2-sigma)
    - ScalerSelector - автовыбор скейлера (Standard/Robust/MinMax)
    - SkewnessTransformer - log/sqrt/box-cox трансформации
    - ⚠️ **TODO v0.13.0:** MultivariateOutlierDetector - IsolationForest/LOF/EllipticEnvelope для детекции outliers в многомерном пространстве
@@ -237,6 +241,31 @@ OptimalKFinder использует голосование трех метрик
 - Calinski-Harabasz (выше = лучше)
 - Davies-Bouldin (ниже = лучше)
 
+### 6. Winsorization для univariate outliers (v0.12.1)
+
+**Проблема с IQR и clip:**
+- IQR threshold=1.5 слишком слабый для экстремальных выбросов (10-50x)
+- При `action='clip'` все экстремальные значения обрезаются до одной границы
+- Пример: revenue=[100, 150, ..., 10000, 12000, 15000] → все три → 875 (одно значение!)
+- Результат: артефакты, потеря информации
+
+**Решение - Winsorize:**
+```python
+pipeline = ClusterAnalysisPipeline(
+    handle_outliers='winsorize',  # Recommended!
+    # percentile_limits=(0.025, 0.975) - по умолчанию
+)
+```
+
+**Преимущества:**
+- Distribution-agnostic (работает с любыми распределениями)
+- Percentile-based clipping (default 2.5%-97.5% = ~2-sigma)
+- Нет артефактов (экстремальные значения обрезаются до разных перцентилей)
+- Нет потери данных (rows сохраняются)
+- Хорошо работает с асимметричными outliers
+
+**Важно:** Winsorize решает UNIVARIATE outliers (per-feature). Для MULTIVARIATE outliers (выбросы в многомерном пространстве) нужен MultivariateOutlierDetector (планируется v0.13.0).
+
 ## История релизов
 
 - **v0.1.0** (первый релиз) - базовый pipeline без DBSCAN, Hierarchical, visualization, naming
@@ -268,6 +297,19 @@ OptimalKFinder использует голосование трех метрик
   - Replaced pandas groupby with pure NumPy bincount
   - Performance: 1.23x faster (0.0165s → 0.0134s on 80k samples)
   - True vectorization without hidden loops or pandas overhead
+- **v0.11.0** - Smart Feature Selection & Cluster Balance
+  - SmartCorrelationFilter: Hopkins statistic-based feature selection
+  - ClusterBalancer: min_cluster_size enforcement for quality control
+- **v0.11.1** - SHAP fix для multidimensional arrays
+- **v0.12.0** - Algorithm Parameters & Noise Point Tracking
+  - Exposed algorithm parameters in Pipeline (kmeans_params, dbscan_params, etc.)
+  - ClusterProfiler tracks noise points (n_noise_, noise_ratio_)
+- **v0.12.1** - Winsorize: Percentile-based Outlier Handling (RECOMMENDED)
+  - New 'winsorize' action for OutlierHandler (distribution-agnostic)
+  - Percentile-based clipping (default 2.5%-97.5%, ~2-sigma)
+  - Solves: IQR artifacts (multiple extreme values → same clipped value)
+  - Pipeline: handle_outliers='winsorize' now available
+  - Better than 'clip' for extreme/asymmetric outliers
 
 ## Контакты автора
 

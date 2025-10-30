@@ -22,12 +22,14 @@ class OutlierHandler:
         - 'iqr': Interquartile Range method (Q1 - 1.5*IQR, Q3 + 1.5*IQR)
         - 'zscore': Z-score method (|z| > threshold)
         - 'modified_zscore': Modified Z-score using median absolute deviation
+        - 'percentile': Percentile-based method (clips to specified percentiles)
 
     action : str, default='clip'
         Action to take for outliers:
         - 'clip': Clip outliers to the boundary values
         - 'remove': Remove rows containing outliers
         - 'nan': Replace outliers with NaN (can be imputed later)
+        - 'winsorize': Clip to percentile bounds (uses percentile method automatically)
         - None: Only detect, don't modify data
 
     threshold : float, default=1.5
@@ -35,6 +37,15 @@ class OutlierHandler:
         - For 'iqr': multiplier for IQR (typical: 1.5 for outliers, 3 for extreme outliers)
         - For 'zscore': z-score threshold (typical: 3.0)
         - For 'modified_zscore': modified z-score threshold (typical: 3.5)
+        - Not used for 'percentile' method (use percentile_limits instead)
+
+    percentile_limits : tuple, default=(0.025, 0.975)
+        Lower and upper percentile limits for 'percentile' method and 'winsorize' action.
+        Default clips 2.5% from each tail (5% total), corresponding to ~2-sigma.
+        Common values:
+        - (0.01, 0.99): Very mild, clips 2% total (extreme outliers only)
+        - (0.025, 0.975): Balanced (default), clips 5% total
+        - (0.05, 0.95): Aggressive, clips 10% total
 
     Attributes
     ----------
@@ -62,16 +73,21 @@ class OutlierHandler:
     >>> # Z-score method with removal
     >>> handler = OutlierHandler(method='zscore', action='remove', threshold=3.0)
     >>> result = handler.fit_transform(df)
+    >>>
+    >>> # Winsorize method (percentile-based, recommended for clustering)
+    >>> handler = OutlierHandler(action='winsorize', percentile_limits=(0.025, 0.975))
+    >>> result = handler.fit_transform(df)
     """
 
     def __init__(
         self,
         method: str = 'iqr',
         action: Union[str, None] = 'clip',
-        threshold: float = 1.5
+        threshold: float = 1.5,
+        percentile_limits: Tuple[float, float] = (0.025, 0.975)
     ):
-        valid_methods = ['iqr', 'zscore', 'modified_zscore']
-        valid_actions = ['clip', 'remove', 'nan', None]
+        valid_methods = ['iqr', 'zscore', 'modified_zscore', 'percentile']
+        valid_actions = ['clip', 'remove', 'nan', 'winsorize', None]
 
         if method not in valid_methods:
             raise ValueError(
@@ -83,9 +99,21 @@ class OutlierHandler:
                 f"Invalid action '{action}'. Must be one of {valid_actions}."
             )
 
+        # Validate percentile_limits
+        if not (0 <= percentile_limits[0] < percentile_limits[1] <= 1):
+            raise ValueError(
+                f"Invalid percentile_limits {percentile_limits}. "
+                "Must be (lower, upper) where 0 <= lower < upper <= 1."
+            )
+
+        # If action is 'winsorize', automatically use 'percentile' method
+        if action == 'winsorize':
+            method = 'percentile'
+
         self.method = method
         self.action = action
         self.threshold = threshold
+        self.percentile_limits = percentile_limits
         self.outlier_bounds_: Union[pd.DataFrame, None] = None
         self.outlier_mask_: Union[pd.DataFrame, None] = None
         self.outlier_counts_: Union[pd.Series, None] = None
@@ -119,6 +147,8 @@ class OutlierHandler:
                 lower, upper = self._compute_zscore_bounds(X[col])
             elif self.method == 'modified_zscore':
                 lower, upper = self._compute_modified_zscore_bounds(X[col])
+            elif self.method == 'percentile':
+                lower, upper = self._compute_percentile_bounds(X[col])
 
             bounds_data.append({
                 'feature': col,
@@ -161,8 +191,8 @@ class OutlierHandler:
         X_transformed = X.copy()
         outlier_mask = self._detect_outliers(X_transformed)
 
-        if self.action == 'clip':
-            # Clip to bounds
+        if self.action == 'clip' or self.action == 'winsorize':
+            # Clip to bounds (winsorize is same as clip for percentile method)
             for _, row in self.outlier_bounds_.iterrows():
                 col = row['feature']
                 if col in X_transformed.columns:
@@ -239,6 +269,24 @@ class OutlierHandler:
             lower_bound = series.min()
             upper_bound = series.max()
 
+        return lower_bound, upper_bound
+
+    def _compute_percentile_bounds(self, series: pd.Series) -> Tuple[float, float]:
+        """
+        Compute outlier bounds using percentile method.
+
+        This method is distribution-agnostic and works well for any data shape.
+        It clips values to specified percentiles, effectively implementing
+        winsorization when used with 'clip' or 'winsorize' action.
+
+        Returns
+        -------
+        lower_bound, upper_bound : tuple of float
+            Percentile-based bounds.
+        """
+        lower_percentile, upper_percentile = self.percentile_limits
+        lower_bound = series.quantile(lower_percentile)
+        upper_bound = series.quantile(upper_percentile)
         return lower_bound, upper_bound
 
     def _detect_outliers(self, X: pd.DataFrame) -> pd.DataFrame:

@@ -42,7 +42,12 @@ class ClusterAnalysisPipeline:
 
     handle_outliers : str or None, default='robust'
         Strategy for handling outliers.
-        Options: 'robust' (RobustScaler), 'clip', 'remove', None.
+        Options:
+        - 'robust': Use RobustScaler (ignores outliers during scaling)
+        - 'clip': Clip outliers to IQR bounds before scaling
+        - 'winsorize': Clip to percentile bounds (recommended, v0.13.0+)
+        - 'remove': Remove rows with outliers
+        - None: No outlier handling
 
     scaling : str, default='robust'
         Scaling method to use.
@@ -408,6 +413,13 @@ class ClusterAnalysisPipeline:
             self._outlier_handler = OutlierHandler(method='iqr', action='clip', threshold=1.5)
             data_working = self._outlier_handler.fit_transform(data_working)
             self._scaler = ScalerSelector(scaler_type=self.scaling)
+        elif self.handle_outliers == 'winsorize':
+            # Winsorize outliers using percentile-based clipping (recommended)
+            self._outlier_handler = OutlierHandler(action='winsorize', percentile_limits=(0.025, 0.975))
+            data_working = self._outlier_handler.fit_transform(data_working)
+            self._scaler = ScalerSelector(scaler_type=self.scaling)
+            if self.verbose:
+                print(f"    Outliers winsorized to 2.5%-97.5% percentile range")
         elif self.handle_outliers == 'remove':
             # Remove outliers
             self._outlier_handler = OutlierHandler(method='iqr', action='remove', threshold=1.5)
