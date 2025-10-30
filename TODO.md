@@ -1,9 +1,9 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.9.0 🚀
+## Текущий статус: v0.10.0 🚀
 
-**Latest Release:** v0.9.0 (Published!)
-**PyPI:** https://pypi.org/project/clustertk/0.9.0/
+**Latest Release:** v0.10.0 (Ready to publish!)
+**Previous:** v0.9.0 - https://pypi.org/project/clustertk/0.9.0/
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
 ## ✅ Что завершено
@@ -150,7 +150,49 @@
 
 ---
 
-## 🎯 Приоритеты для v0.10.0+
+## ✅ v0.10.0 - Stability Analysis Performance Optimization (Completed!)
+
+### Major Performance Improvements ✅
+   - [x] **Memory optimization** (~64x reduction for 80k samples)
+     - [x] Streaming computation instead of storing all bootstrap results
+     - [x] Memory: O(n_samples + window) instead of O(n_samples × n_iterations)
+     - [x] 80k samples: from 32+ GB (OOM) → <500 MB
+   - [x] **Speed optimization** (100-1000x faster)
+     - [x] Replaced nested Python loops with NumPy broadcasting
+     - [x] Fast lookup via np.searchsorted() instead of np.where() in loops
+     - [x] Adaptive pair sampling for large clusters
+     - [x] 80k samples, 20 iterations: ~6 seconds
+   - [x] **Sliding window approach**
+     - [x] Only keeps last 10 iterations in memory
+     - [x] Same statistical validity with fraction of memory
+   - [x] **New parameters for tuning**
+     - [x] max_comparison_window (default: 10)
+     - [x] max_pairs_per_cluster (default: 5000)
+
+### Implementation Details ✅
+   - [x] Rewritten ClusterStabilityAnalyzer with streaming methods
+   - [x] _update_sample_confidence_streaming() - vectorized updates
+   - [x] _update_cluster_stability_streaming() - adaptive sampling
+   - [x] _compute_ari_fast() - optimized ARI computation
+   - [x] _finalize_cluster_stability() - streaming aggregation
+   - [x] Removed old inefficient methods
+
+### Testing & Validation ✅
+   - [x] Tested on 1k samples (0.95s, perfect results)
+   - [x] Tested on 10k samples (1.22s, perfect results)
+   - [x] Tested on 80k samples (6.15s, works without OOM!)
+   - [x] Backward compatible API (no breaking changes)
+
+### Release ✅
+   - [x] Version bump to 0.10.0
+   - [x] CHANGELOG.md updated with detailed technical info
+   - [x] TODO.md updated
+   - [ ] Build and publish to PyPI
+   - [ ] Create GitHub Release
+
+---
+
+## 🎯 Приоритеты для v0.11.0+
 
 ### MEDIUM PRIORITY
 

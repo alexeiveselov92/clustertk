@@ -3,9 +3,12 @@ Cluster stability analysis using bootstrap resampling.
 
 This module provides tools for assessing the stability and reliability
 of clustering results through repeated resampling and consensus analysis.
+
+Optimized for large datasets with streaming computation and vectorized operations.
 """
 
-from typing import Dict, Optional, Tuple, Callable
+from typing import Dict, Optional, Tuple, Callable, List
+from collections import deque
 import numpy as np
 import pandas as pd
 from sklearn.metrics import adjusted_rand_score
@@ -63,19 +66,44 @@ class ClusterStabilityAnalyzer:
         n_iterations: int = 100,
         sample_fraction: float = 0.8,
         random_state: Optional[int] = None,
-        verbose: bool = False
+        verbose: bool = False,
+        max_comparison_window: int = 10,
+        max_pairs_per_cluster: int = 5000
     ):
+        """
+        Initialize stability analyzer with optimized parameters.
+
+        Parameters
+        ----------
+        n_iterations : int, default=100
+            Number of bootstrap iterations.
+        sample_fraction : float, default=0.8
+            Fraction of samples per bootstrap.
+        random_state : int or None, default=None
+            Random state for reproducibility.
+        verbose : bool, default=False
+            Print progress messages.
+        max_comparison_window : int, default=10
+            Maximum number of recent iterations to keep for ARI comparison.
+            Reduces memory usage from O(n_iterations) to O(max_comparison_window).
+        max_pairs_per_cluster : int, default=5000
+            Maximum number of sample pairs to check per cluster.
+            If cluster has more pairs, randomly sample this many.
+            Reduces time complexity from O(cluster_size²) to O(max_pairs).
+        """
         self.n_iterations = n_iterations
         self.sample_fraction = sample_fraction
         self.random_state = random_state
         self.verbose = verbose
+        self.max_comparison_window = max_comparison_window
+        self.max_pairs_per_cluster = max_pairs_per_cluster
 
         # Results storage
         self.overall_stability_: Optional[float] = None
         self.cluster_stability_: Optional[pd.DataFrame] = None
         self.sample_confidence_: Optional[np.ndarray] = None
         self.pairwise_ari_: Optional[np.ndarray] = None
-        self._bootstrap_labels_: Optional[np.ndarray] = None
+        self._bootstrap_labels_: Optional[List] = None  # Only stores last few iterations
 
     def analyze(
         self,
@@ -85,6 +113,9 @@ class ClusterStabilityAnalyzer:
     ) -> Dict:
         """
         Perform stability analysis on clustering algorithm.
+
+        Optimized version with streaming computation and vectorized operations.
+        Memory usage: O(n_samples + max_comparison_window) instead of O(n_samples × n_iterations).
 
         Parameters
         ----------
@@ -113,64 +144,18 @@ class ClusterStabilityAnalyzer:
         >>> print(f"Stability: {results['overall_stability']:.3f}")
         """
         if self.verbose:
-            print(f"Starting stability analysis with {self.n_iterations} iterations...")
+            print(f"Starting optimized stability analysis with {self.n_iterations} iterations...")
+            print(f"  Dataset size: {len(X):,} samples")
+            print(f"  Bootstrap size: {int(len(X) * self.sample_fraction):,} samples per iteration")
+            print(f"  Memory optimization: using sliding window of {self.max_comparison_window} iterations")
 
         n_samples = len(X)
         n_bootstrap = int(n_samples * self.sample_fraction)
 
-        # Storage for bootstrap results
-        bootstrap_labels = []
-        bootstrap_indices = []
+        if fit_params is None:
+            fit_params = {}
 
-        # Perform bootstrap iterations
-        rng = np.random.RandomState(self.random_state)
-
-        for i in range(self.n_iterations):
-            if self.verbose and (i + 1) % 20 == 0:
-                print(f"  Iteration {i + 1}/{self.n_iterations}")
-
-            # Bootstrap sample
-            indices = rng.choice(n_samples, size=n_bootstrap, replace=True)
-            X_bootstrap = X.iloc[indices]
-
-            # Fit clusterer on bootstrap sample
-            try:
-                # Clone clusterer to avoid fitting the same instance
-                from sklearn.base import clone
-                clusterer_clone = clone(clusterer)
-            except:
-                # If clone fails, assume clusterer is stateless
-                clusterer_clone = clusterer
-
-            # Fit and get labels
-            if fit_params is None:
-                fit_params = {}
-
-            try:
-                clusterer_clone.fit(X_bootstrap, **fit_params)
-                labels_bootstrap = clusterer_clone.predict(X_bootstrap)
-            except:
-                # If predict doesn't exist, use fit_predict
-                labels_bootstrap = clusterer_clone.fit_predict(X_bootstrap, **fit_params)
-
-            bootstrap_labels.append(labels_bootstrap)
-            bootstrap_indices.append(indices)
-
-        # Store bootstrap results
-        self._bootstrap_labels_ = np.array(bootstrap_labels, dtype=object)
-
-        # Compute stability metrics
-        if self.verbose:
-            print("Computing stability metrics...")
-
-        # 1. Overall stability via pairwise ARI
-        overall_stability = self._compute_overall_stability(
-            bootstrap_labels, bootstrap_indices
-        )
-        self.overall_stability_ = overall_stability
-
-        # 2. Per-cluster stability
-        # First, fit on full data to get reference labels
+        # Get reference labels by fitting on full data first
         try:
             from sklearn.base import clone
             clusterer_full = clone(clusterer)
@@ -178,24 +163,108 @@ class ClusterStabilityAnalyzer:
             clusterer_full = clusterer
 
         try:
-            clusterer_full.fit(X, **fit_params if fit_params else {})
+            clusterer_full.fit(X, **fit_params)
             reference_labels = clusterer_full.predict(X)
         except:
-            reference_labels = clusterer_full.fit_predict(X, **fit_params if fit_params else {})
+            reference_labels = clusterer_full.fit_predict(X, **fit_params)
 
-        cluster_stability = self._compute_cluster_stability(
-            X, reference_labels, bootstrap_labels, bootstrap_indices
+        # Initialize streaming accumulators
+        rng = np.random.RandomState(self.random_state)
+
+        # For overall stability: sliding window of recent iterations
+        recent_iterations = deque(maxlen=self.max_comparison_window)
+        ari_scores = []
+
+        # For sample confidence: streaming counters
+        confidence_sum = np.zeros(n_samples, dtype=np.float64)
+        appearance_count = np.zeros(n_samples, dtype=np.int32)
+
+        # For cluster stability: streaming pair counters per cluster
+        unique_clusters = np.unique(reference_labels)
+        unique_clusters = unique_clusters[unique_clusters != -1]  # Exclude noise
+
+        cluster_pair_stats = {}
+        for cluster_id in unique_clusters:
+            cluster_pair_stats[cluster_id] = {
+                'together_count': 0,
+                'total_pairs': 0
+            }
+
+        # Perform bootstrap iterations with streaming computation
+        for i in range(self.n_iterations):
+            if self.verbose and (i + 1) % 20 == 0:
+                print(f"  Iteration {i + 1}/{self.n_iterations}")
+
+            # Generate bootstrap sample
+            indices = rng.choice(n_samples, size=n_bootstrap, replace=True)
+            X_bootstrap = X.iloc[indices]
+
+            # Fit clusterer on bootstrap sample
+            try:
+                from sklearn.base import clone
+                clusterer_clone = clone(clusterer)
+            except:
+                clusterer_clone = clusterer
+
+            try:
+                clusterer_clone.fit(X_bootstrap, **fit_params)
+                labels_bootstrap = clusterer_clone.predict(X_bootstrap)
+            except:
+                labels_bootstrap = clusterer_clone.fit_predict(X_bootstrap, **fit_params)
+
+            # === STREAMING COMPUTATION: Update metrics incrementally ===
+
+            # 1. Update sample confidence (streaming)
+            self._update_sample_confidence_streaming(
+                indices, labels_bootstrap, reference_labels,
+                confidence_sum, appearance_count
+            )
+
+            # 2. Update cluster stability (streaming)
+            self._update_cluster_stability_streaming(
+                indices, labels_bootstrap, reference_labels,
+                unique_clusters, cluster_pair_stats, rng
+            )
+
+            # 3. Update overall stability with sliding window
+            current_iteration = (labels_bootstrap, indices)
+
+            # Compare with recent iterations
+            for prev_labels, prev_indices in recent_iterations:
+                ari = self._compute_ari_fast(
+                    labels_bootstrap, indices,
+                    prev_labels, prev_indices
+                )
+                if ari is not None:
+                    ari_scores.append(ari)
+
+            # Add current to window
+            recent_iterations.append(current_iteration)
+
+        # Compute final metrics from streaming accumulators
+        if self.verbose:
+            print("  Finalizing stability metrics...")
+
+        # 1. Sample confidence
+        mask = appearance_count > 0
+        sample_confidence = np.zeros(n_samples, dtype=np.float64)
+        sample_confidence[mask] = confidence_sum[mask] / appearance_count[mask]
+
+        # 2. Cluster stability
+        cluster_stability = self._finalize_cluster_stability(
+            unique_clusters, cluster_pair_stats, reference_labels
         )
+
+        # 3. Overall stability
+        overall_stability = float(np.mean(ari_scores)) if ari_scores else 0.0
+        mean_ari = overall_stability
+
+        # Store results
+        self.overall_stability_ = overall_stability
         self.cluster_stability_ = cluster_stability
-
-        # 3. Per-sample confidence scores
-        sample_confidence = self._compute_sample_confidence(
-            X, reference_labels, bootstrap_labels, bootstrap_indices
-        )
         self.sample_confidence_ = sample_confidence
-
-        # 4. Mean ARI
-        mean_ari = self._compute_mean_ari(bootstrap_labels, bootstrap_indices)
+        self.pairwise_ari_ = np.array(ari_scores)
+        self._bootstrap_labels_ = list(recent_iterations)  # Only last few iterations
 
         # Identify stable and unstable clusters
         stable_threshold = 0.7
@@ -226,182 +295,164 @@ class ClusterStabilityAnalyzer:
             'reference_labels': reference_labels
         }
 
-    def _compute_overall_stability(
+    def _update_sample_confidence_streaming(
         self,
-        bootstrap_labels: list,
-        bootstrap_indices: list
-    ) -> float:
-        """
-        Compute overall stability as mean pairwise ARI.
-
-        Uses only overlapping samples between bootstrap iterations.
-        """
-        n_iterations = len(bootstrap_labels)
-        ari_scores = []
-
-        # Sample pairs of iterations (not all pairs for efficiency)
-        max_comparisons = min(500, n_iterations * (n_iterations - 1) // 2)
-        rng = np.random.RandomState(self.random_state)
-
-        comparisons = 0
-        for i in range(n_iterations):
-            # Compare with a few random later iterations
-            n_compare = min(10, n_iterations - i - 1)
-            if n_compare > 0:
-                compare_indices = rng.choice(
-                    range(i + 1, n_iterations),
-                    size=n_compare,
-                    replace=False
-                )
-
-                for j in compare_indices:
-                    if comparisons >= max_comparisons:
-                        break
-
-                    # Find overlapping samples
-                    indices_i = bootstrap_indices[i]
-                    indices_j = bootstrap_indices[j]
-
-                    # Get intersection
-                    overlap = np.intersect1d(indices_i, indices_j)
-
-                    if len(overlap) > 1:  # Need at least 2 samples
-                        # Get labels for overlapping samples in consistent order
-                        # Map from original indices to bootstrap positions
-                        labels_i_overlap = []
-                        labels_j_overlap = []
-
-                        for orig_idx in sorted(overlap):
-                            # Find position in bootstrap i
-                            pos_i = np.where(indices_i == orig_idx)[0][0]
-                            labels_i_overlap.append(bootstrap_labels[i][pos_i])
-
-                            # Find position in bootstrap j
-                            pos_j = np.where(indices_j == orig_idx)[0][0]
-                            labels_j_overlap.append(bootstrap_labels[j][pos_j])
-
-                        # Compute ARI
-                        ari = adjusted_rand_score(labels_i_overlap, labels_j_overlap)
-                        ari_scores.append(ari)
-                        comparisons += 1
-
-                if comparisons >= max_comparisons:
-                    break
-
-        # Store pairwise ARI
-        self.pairwise_ari_ = np.array(ari_scores)
-
-        # Return mean ARI as overall stability
-        return np.mean(ari_scores) if ari_scores else 0.0
-
-    def _compute_cluster_stability(
-        self,
-        X: pd.DataFrame,
+        indices: np.ndarray,
+        labels_bootstrap: np.ndarray,
         reference_labels: np.ndarray,
-        bootstrap_labels: list,
-        bootstrap_indices: list
+        confidence_sum: np.ndarray,
+        appearance_count: np.ndarray
+    ) -> None:
+        """
+        Update sample confidence scores incrementally (streaming).
+
+        This replaces the old approach of storing all bootstrap labels
+        and computing confidence at the end.
+
+        Time complexity: O(n_bootstrap) per iteration
+        Space complexity: O(1) additional memory
+        """
+        # Vectorized update - much faster than loop
+        appearance_count[indices] += 1
+
+        # Check which samples got their reference label
+        matches = labels_bootstrap == reference_labels[indices]
+        confidence_sum[indices[matches]] += 1
+
+    def _update_cluster_stability_streaming(
+        self,
+        indices: np.ndarray,
+        labels_bootstrap: np.ndarray,
+        reference_labels: np.ndarray,
+        unique_clusters: np.ndarray,
+        cluster_pair_stats: Dict,
+        rng: np.random.RandomState
+    ) -> None:
+        """
+        Update cluster stability metrics incrementally (streaming).
+
+        Uses adaptive sampling: if a cluster has too many pairs,
+        randomly sample max_pairs_per_cluster pairs instead of checking all.
+
+        Time complexity: O(n_clusters × max_pairs_per_cluster) per iteration
+        Space complexity: O(1) additional memory
+        """
+        for cluster_id in unique_clusters:
+            # Get samples from this reference cluster that appear in bootstrap
+            cluster_mask = reference_labels == cluster_id
+            cluster_samples_in_ref = np.where(cluster_mask)[0]
+
+            # Find which of these appear in current bootstrap
+            mask = np.isin(cluster_samples_in_ref, indices)
+            present_samples = cluster_samples_in_ref[mask]
+
+            if len(present_samples) < 2:
+                continue
+
+            # Get bootstrap labels for these samples
+            # Use searchsorted for fast lookup (requires sorted indices)
+            sorted_idx = np.argsort(indices)
+            positions = sorted_idx[np.searchsorted(indices[sorted_idx], present_samples)]
+            bootstrap_labels_for_cluster = labels_bootstrap[positions]
+
+            # Count pairs - adaptive sampling for large clusters
+            n_samples_in_cluster = len(present_samples)
+            total_possible_pairs = n_samples_in_cluster * (n_samples_in_cluster - 1) // 2
+
+            if total_possible_pairs <= self.max_pairs_per_cluster:
+                # Small cluster: check all pairs with vectorization
+                same_label = bootstrap_labels_for_cluster[:, None] == bootstrap_labels_for_cluster[None, :]
+                upper_triangle = np.triu(same_label, k=1)
+                together_count = upper_triangle.sum()
+                total_pairs = total_possible_pairs
+            else:
+                # Large cluster: sample random pairs
+                n_pairs_to_sample = self.max_pairs_per_cluster
+
+                # Generate random pairs
+                idx1 = rng.randint(0, n_samples_in_cluster, size=n_pairs_to_sample)
+                idx2 = rng.randint(0, n_samples_in_cluster, size=n_pairs_to_sample)
+
+                # Ensure idx1 != idx2
+                same_idx = idx1 == idx2
+                idx2[same_idx] = (idx2[same_idx] + 1) % n_samples_in_cluster
+
+                # Vectorized comparison
+                together = bootstrap_labels_for_cluster[idx1] == bootstrap_labels_for_cluster[idx2]
+                together_count = together.sum()
+                total_pairs = n_pairs_to_sample
+
+            # Update streaming counters
+            cluster_pair_stats[cluster_id]['together_count'] += together_count
+            cluster_pair_stats[cluster_id]['total_pairs'] += total_pairs
+
+    def _finalize_cluster_stability(
+        self,
+        unique_clusters: np.ndarray,
+        cluster_pair_stats: Dict,
+        reference_labels: np.ndarray
     ) -> pd.DataFrame:
         """
-        Compute stability score for each cluster.
-
-        For each cluster, measures how often its members stay together
-        across bootstrap iterations.
+        Compute final cluster stability scores from streaming counters.
         """
-        n_samples = len(X)
-        unique_clusters = np.unique(reference_labels)
-        unique_clusters = unique_clusters[unique_clusters != -1]  # Exclude noise
-
         cluster_stabilities = []
 
         for cluster_id in unique_clusters:
-            # Get samples in this cluster
-            cluster_samples = np.where(reference_labels == cluster_id)[0]
+            stats = cluster_pair_stats[cluster_id]
+            together_count = stats['together_count']
+            total_pairs = stats['total_pairs']
 
-            if len(cluster_samples) < 2:
-                cluster_stabilities.append({
-                    'cluster': int(cluster_id),
-                    'stability': 0.0,
-                    'size': len(cluster_samples)
-                })
-                continue
+            if total_pairs > 0:
+                stability = together_count / total_pairs
+            else:
+                stability = 0.0
 
-            # Count how many times pairs from this cluster appear together
-            pair_counts = []
-
-            for iter_idx, (labels, indices) in enumerate(zip(bootstrap_labels, bootstrap_indices)):
-                # Check which cluster samples appear in this bootstrap
-                mask = np.isin(cluster_samples, indices)
-                present_samples = cluster_samples[mask]
-
-                if len(present_samples) < 2:
-                    continue
-
-                # Find where these samples are in the bootstrap
-                positions = [np.where(indices == s)[0][0] for s in present_samples]
-                bootstrap_cluster_labels = labels[positions]
-
-                # Count pairs that stay together (same label)
-                for i in range(len(present_samples)):
-                    for j in range(i + 1, len(present_samples)):
-                        if bootstrap_cluster_labels[i] == bootstrap_cluster_labels[j]:
-                            pair_counts.append(1)
-                        else:
-                            pair_counts.append(0)
-
-            # Stability = proportion of pairs that stay together
-            stability = np.mean(pair_counts) if pair_counts else 0.0
+            cluster_size = np.sum(reference_labels == cluster_id)
 
             cluster_stabilities.append({
                 'cluster': int(cluster_id),
-                'stability': stability,
-                'size': len(cluster_samples)
+                'stability': float(stability),
+                'size': int(cluster_size)
             })
 
         df = pd.DataFrame(cluster_stabilities)
         df = df.sort_values('stability', ascending=False).reset_index(drop=True)
-
         return df
 
-    def _compute_sample_confidence(
+    def _compute_ari_fast(
         self,
-        X: pd.DataFrame,
-        reference_labels: np.ndarray,
-        bootstrap_labels: list,
-        bootstrap_indices: list
-    ) -> np.ndarray:
+        labels1: np.ndarray,
+        indices1: np.ndarray,
+        labels2: np.ndarray,
+        indices2: np.ndarray
+    ) -> Optional[float]:
         """
-        Compute confidence score for each sample.
+        Compute ARI between two bootstrap iterations on overlapping samples.
 
-        Confidence = proportion of bootstrap iterations where sample
-        is assigned to its reference cluster.
+        Optimized version using np.searchsorted instead of np.where() in loop.
+
+        Time complexity: O(overlap_size × log(n)) instead of O(overlap_size × n)
         """
-        n_samples = len(X)
-        confidence_scores = np.zeros(n_samples)
-        appearance_counts = np.zeros(n_samples)
+        # Find overlapping sample indices
+        overlap = np.intersect1d(indices1, indices2)
 
-        for iter_idx, (labels, indices) in enumerate(zip(bootstrap_labels, bootstrap_indices)):
-            for idx, sample_idx in enumerate(indices):
-                appearance_counts[sample_idx] += 1
+        if len(overlap) < 2:
+            return None
 
-                # Check if assigned to same cluster as reference
-                if labels[idx] == reference_labels[sample_idx]:
-                    confidence_scores[sample_idx] += 1
+        # Fast lookup using searchsorted
+        sorted_idx1 = np.argsort(indices1)
+        sorted_idx2 = np.argsort(indices2)
 
-        # Avoid division by zero
-        mask = appearance_counts > 0
-        confidence_scores[mask] = confidence_scores[mask] / appearance_counts[mask]
+        pos1 = sorted_idx1[np.searchsorted(indices1[sorted_idx1], overlap)]
+        pos2 = sorted_idx2[np.searchsorted(indices2[sorted_idx2], overlap)]
 
-        return confidence_scores
+        labels1_overlap = labels1[pos1]
+        labels2_overlap = labels2[pos2]
 
-    def _compute_mean_ari(
-        self,
-        bootstrap_labels: list,
-        bootstrap_indices: list
-    ) -> float:
-        """Compute mean ARI across all pairwise comparisons."""
-        if self.pairwise_ari_ is not None:
-            return float(np.mean(self.pairwise_ari_))
-        return 0.0
+        # Compute ARI
+        ari = adjusted_rand_score(labels1_overlap, labels2_overlap)
+        return float(ari)
+
 
     def get_stable_samples(self, threshold: float = 0.7) -> np.ndarray:
         """
