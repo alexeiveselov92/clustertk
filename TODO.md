@@ -368,7 +368,104 @@
 
 ---
 
-## 🎯 Приоритеты для v0.13.0+
+## 🎯 v0.13.0 - Multivariate Outlier Detection (HIGH PRIORITY) 🔥
+
+### Проблема
+**Текущая ситуация:**
+- K-Means часто создаёт 1 огромный кластер (95%+ данных) + несколько маленьких кластеров
+- Silhouette score высокий (~0.9), но результат бесполезный
+- Причина: маленькие кластеры = замаскированные outliers
+- Текущий `OutlierHandler` работает **univariate** (по каждому признаку отдельно) → не ловит multivariate outliers
+
+### Решение
+**MultivariateOutlierDetector** - новый preprocessing модуль
+
+### Архитектура:
+
+```python
+class MultivariateOutlierDetector:
+    """
+    Detect multivariate outliers before clustering.
+
+    Methods:
+    - 'isolation_forest' - IsolationForest (лучше для high-dimensional)
+    - 'lof' - LocalOutlierFactor (лучше для low-dimensional, плотных данных)
+    - 'elliptic_envelope' - EllipticEnvelope (только для нормально распределённых)
+    - 'auto' - автовыбор на основе анализа данных
+
+    Actions:
+    - 'remove' - удалить outliers
+    - 'flag' - пометить для отдельного анализа
+    - None - только детекция
+    """
+```
+
+### Интеграция в Pipeline:
+
+```python
+ClusterAnalysisPipeline(
+    # Существующий univariate (per-feature)
+    handle_outliers='robust',              # IQR/z-score per feature
+
+    # НОВОЕ: multivariate (full space)
+    detect_multivariate_outliers='auto',   # NEW!
+    multivariate_outlier_action='remove',  # or 'flag' or None
+    contamination=0.1,                     # expected outlier ratio
+    verbose=True
+)
+```
+
+### Порядок выполнения:
+1. Missing values
+2. Scaling (StandardScaler/RobustScaler)
+3. **Multivariate outlier detection** ← NEW!
+4. PCA (dimensionality reduction)
+5. Feature selection (correlation/variance)
+6. Clustering
+
+### Auto-режим логика:
+
+```python
+def _select_multivariate_method(X, n_samples, n_features):
+    """Auto-select best method based on data characteristics."""
+
+    # High-dimensional (many features): IsolationForest
+    if n_features > 20:
+        return 'isolation_forest'
+
+    # Low-dimensional + dense: LocalOutlierFactor
+    elif n_features <= 20 and n_samples > 1000:
+        return 'lof'
+
+    # Check if data is approximately normal
+    # (can use scipy.stats.normaltest on PCA components)
+    if is_approximately_normal(X):
+        return 'elliptic_envelope'
+
+    # Default: IsolationForest (most robust)
+    return 'isolation_forest'
+```
+
+### Задачи:
+
+- [ ] Создать `clustertk/preprocessing/multivariate_outliers.py`
+- [ ] Реализовать `MultivariateOutlierDetector` класс
+- [ ] Добавить параметры в `ClusterAnalysisPipeline.__init__()`
+- [ ] Интегрировать в preprocessing workflow (после scaling, до PCA)
+- [ ] Добавить `_select_multivariate_method()` для auto-режима
+- [ ] Тесты: test_multivariate_outliers.py
+- [ ] Документация: обновить preprocessing.md
+- [ ] Примеры использования в quickstart.md и examples.md
+- [ ] Обновить CHANGELOG.md
+
+### Ожидаемый результат:
+- Улучшенное качество кластеризации (нет доминирующих кластеров)
+- Автоматическая детекция multivariate outliers
+- Возможность анализа outliers отдельно (action='flag')
+
+---
+
+## 🎯 Приоритеты для v0.14.0+
 
 ### MEDIUM PRIORITY
 

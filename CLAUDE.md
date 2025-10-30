@@ -11,47 +11,56 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.10.2 (2025-10-30)
+- **Latest Version:** v0.12.0 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.12.0 - Algorithm Parameters & Noise Point Tracking
+  - v0.11.1 - SHAP multidimensional array fix
+  - v0.11.0 - Smart Feature Selection & Cluster Balance
   - v0.10.2 - True NumPy vectorization (1.23x faster feature contribution)
   - v0.10.1 - Feature importance memory fix (OOM → 20s on 80k samples)
-  - v0.10.0 - Stability analysis optimization (64x memory reduction, 100-1000x speedup)
 
 ### ✅ Полностью реализовано:
 
-1. **Preprocessing** - полностью готово (v0.1.0)
+1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0)
    - MissingValueHandler - обработка пропусков (median/mean/drop/custom)
-   - OutlierHandler - детекция и обработка выбросов (IQR/z-score/modified z-score)
+   - OutlierHandler - детекция и обработка выбросов (IQR/z-score/modified z-score) - UNIVARIATE
    - ScalerSelector - автовыбор скейлера (Standard/Robust/MinMax)
    - SkewnessTransformer - log/sqrt/box-cox трансформации
+   - ⚠️ **TODO v0.13.0:** MultivariateOutlierDetector - IsolationForest/LOF/EllipticEnvelope для детекции outliers в многомерном пространстве
 
-2. **Feature Selection** - полностью готово (v0.1.0)
+2. **Feature Selection** - полностью готово (v0.1.0, v0.11.0)
    - CorrelationFilter - удаление сильно коррелирующих признаков
+   - SmartCorrelationFilter - интеллектуальный выбор из коррелирующих пар (Hopkins statistic) (v0.11.0)
    - VarianceFilter - удаление low-variance признаков
 
 3. **Dimensionality Reduction** - полностью готово (v0.1.0)
    - PCAReducer - PCA с автоподбором компонент по variance threshold
    - ManifoldReducer - t-SNE/UMAP для визуализации (только для viz, не для кластеризации!)
 
-4. **Clustering** - полностью готово (v0.2.0, v0.8.0)
+4. **Clustering** - полностью готово (v0.2.0, v0.8.0, v0.12.0)
    - BaseClusterer - базовый класс для всех алгоритмов
    - KMeansClustering - K-Means алгоритм
    - GMMClustering - Gaussian Mixture Model
    - HierarchicalClustering - иерархическая кластеризация (Ward, Complete, Average)
    - DBSCANClustering - DBSCAN с автоподбором eps и min_samples
    - HDBSCANClustering - HDBSCAN с автоподбором min_cluster_size (v0.8.0)
+   - clustering_params - гибкая передача параметров любому алгоритму (v0.12.0)
 
-5. **Evaluation** - полностью готово (v0.1.0)
-   - compute_clustering_metrics - Silhouette, Calinski-Harabasz, Davies-Bouldin
+5. **Evaluation** - полностью готово (v0.1.0, v0.11.0, v0.12.0)
+   - compute_clustering_metrics - Silhouette, Calinski-Harabasz, Davies-Bouldin, Cluster Balance (v0.11.0)
+   - Noise points tracking - n_noise, noise_ratio для DBSCAN/HDBSCAN (v0.12.0)
    - OptimalKFinder - автоподбор оптимального k с голосованием метрик
 
-6. **Interpretation** - полностью готово (v0.3.0)
-   - ClusterProfiler - профилирование кластеров, топ-признаки, анализ по категориям
+6. **Interpretation** - полностью готово (v0.3.0, v0.9.0, v0.12.0)
+   - ClusterProfiler - профилирование кластеров (с фильтрацией noise points v0.12.0)
    - ClusterNamer - автоматическое именование кластеров (3 стратегии: top_features, categories, combined)
+   - FeatureImportanceAnalyzer - permutation, contribution, SHAP (v0.9.0)
+   - ClusterStabilityAnalyzer - bootstrap resampling для оценки стабильности (v0.9.0)
 
-7. **Pipeline** - полностью готово (v0.1.0)
+7. **Pipeline** - полностью готово (v0.1.0, v0.12.0)
    - ClusterAnalysisPipeline - оркестрирует все шаги
    - Можно запускать как полный pipeline через .fit() так и пошагово
+   - clustering_params для передачи параметров алгоритмам (v0.12.0)
 
 8. **Visualization** - полностью готово (v0.3.0)
    - 11 функций визуализации в 4 модулях
@@ -82,12 +91,26 @@ ClusterTK - это Python библиотека для полного пайпл�
 
 ### ⚠️ TODO (для будущих версий):
 
-**v0.9.0 (приоритет HIGH):**
+**v0.13.0 (приоритет HIGH):**
+- **Multivariate Outlier Detection** - критическая проблема!
+  - Проблема: K-Means создаёт 1 огромный кластер + маленькие (outliers маскируются)
+  - Причина: Текущий OutlierHandler работает univariate (по каждому признаку отдельно)
+  - Решение: MultivariateOutlierDetector с IsolationForest/LOF/EllipticEnvelope
+  - Архитектура:
+    ```python
+    ClusterAnalysisPipeline(
+        handle_outliers='robust',              # univariate (per feature)
+        detect_multivariate_outliers='auto',   # NEW! multivariate (full space)
+        multivariate_outlier_action='remove',  # or 'flag'
+        contamination=0.1                      # expected outlier ratio
+    )
+    ```
+  - Порядок: scaling → multivariate outliers → PCA → feature selection → clustering
+  - Auto-режим: выбор между IsolationForest (high-dim) / LOF (low-dim) / EllipticEnvelope (normal dist)
+
+**v0.14.0+ (приоритет MEDIUM/LOW):**
 - **Enhanced Coverage** - увеличить покрытие тестами до >50%
 - **CI/CD** - GitHub Actions для автоматического тестирования
-
-**v0.10.0+ (приоритет MEDIUM/LOW):**
-- **Enhanced Feature Analysis** - SHAP values, permutation importance
 - **More Clustering Algorithms** - Spectral Clustering, OPTICS
 - **Sphinx** - полная API документация
 - **GitHub Pages** - хостинг документации

@@ -137,11 +137,11 @@ class MissingValueHandler:
 # preprocessing/outliers.py
 class OutlierHandler:
     """
-    Детекция и обработка выбросов.
+    Детекция и обработка UNIVARIATE выбросов (per-feature).
 
     Parameters:
         method : str
-            'iqr', 'zscore', 'isolation_forest'
+            'iqr', 'zscore', 'modified_zscore'
         action : str
             'clip', 'remove', 'robust_scale'
         threshold : float
@@ -156,6 +156,38 @@ class OutlierHandler:
 
     def handle_outliers(self, X):
         """Обрабатывает выбросы согласно action"""
+        ...
+
+
+# preprocessing/multivariate_outliers.py (v0.13.0+)
+class MultivariateOutlierDetector:
+    """
+    Детекция MULTIVARIATE выбросов (в полном пространстве признаков).
+
+    Решает проблему: K-Means создаёт 1 огромный кластер + маленькие
+    (outliers маскируются как отдельные кластеры).
+
+    Parameters:
+        method : str
+            'auto', 'isolation_forest', 'lof', 'elliptic_envelope'
+        action : str
+            'remove', 'flag', None (только детекция)
+        contamination : float
+            Ожидаемая доля outliers (0.01-0.5)
+    """
+    def __init__(self, method='auto', action='remove', contamination=0.1):
+        ...
+
+    def fit(self, X):
+        """Обучает детектор"""
+        ...
+
+    def detect(self, X):
+        """Возвращает маску outliers"""
+        ...
+
+    def fit_detect(self, X):
+        """Fit + detect"""
         ...
 
 
