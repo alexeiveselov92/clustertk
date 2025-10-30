@@ -1,9 +1,10 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.10.2 🚀
+## Текущий статус: v0.11.0 🚀
 
-**Latest Release:** v0.10.2 - https://pypi.org/project/clustertk/0.10.2/
+**Latest Release:** v0.11.0 - https://pypi.org/project/clustertk/0.11.0/
 **Recent Releases:**
+- v0.11.0 (2025-10-30) - Smart Feature Selection & Cluster Balance
 - v0.10.2 (2025-10-30) - True NumPy vectorization
 - v0.10.1 (2025-10-30) - Feature importance memory fix
 - v0.10.0 (2025-10-30) - Stability analysis optimization
@@ -253,7 +254,48 @@
 
 ---
 
-## 🎯 Приоритеты для v0.11.0+
+## ✅ v0.11.0 - Smart Feature Selection & Cluster Balance (Completed!)
+
+### Smart Correlation Filter ✅
+   - [x] **SmartCorrelationFilter** - intelligent feature selection from correlated pairs
+     - [x] Hopkins statistic strategy - keep features with better clusterability
+     - [x] Variance ratio strategy - keep features with better separation
+     - [x] Backward compatible (mean_corr strategy = old behavior)
+     - [x] get_feature_scores() - view clusterability scores
+     - [x] get_selection_summary() - detailed selection decisions
+   - [x] **Pipeline integration**
+     - [x] Added smart_correlation parameter (default: True)
+     - [x] Added correlation_strategy parameter (default: 'hopkins')
+     - [x] Verbose output shows smart selection reasoning
+     - [x] Backward compatible (can disable with smart_correlation=False)
+
+### Cluster Balance Metric ✅
+   - [x] **cluster_balance_score()** - measure cluster size distribution
+     - [x] Uses normalized Shannon entropy [0, 1]
+     - [x] 1.0 = perfectly balanced, ~0 = highly imbalanced
+     - [x] Handles DBSCAN noise points (-1 labels)
+   - [x] **Integration into evaluation**
+     - [x] Added to compute_clustering_metrics() (include_balance=True by default)
+     - [x] Added to get_metrics_summary() with quality thresholds
+     - [x] Integrated into OptimalKFinder voting (4th metric)
+     - [x] Integrated into compare_algorithms() weighted scoring (15% weight)
+
+### Tests ✅
+   - [x] test_smart_correlation.py - 9 comprehensive tests (90% coverage)
+   - [x] test_cluster_balance.py - 12 comprehensive tests (100% coverage)
+   - [x] All 21 new tests pass ✅
+
+### Release ✅
+   - [x] Version bump to 0.11.0 (setup.py, pyproject.toml)
+   - [x] CHANGELOG.md updated
+   - [x] TODO.md updated
+   - [ ] Build and publish to PyPI: https://pypi.org/project/clustertk/0.11.0/
+   - [ ] Git commit and tag v0.11.0 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.11.0
+
+---
+
+## 🎯 Приоритеты для v0.12.0+
 
 ### MEDIUM PRIORITY
 

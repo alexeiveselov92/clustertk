@@ -2,13 +2,14 @@
 Evaluation module for clustering quality assessment.
 
 This module provides:
-- Clustering metrics (silhouette, calinski-harabasz, davies-bouldin)
+- Clustering metrics (silhouette, calinski-harabasz, davies-bouldin, cluster balance)
 - Optimal k finder
 - Stability analysis via bootstrap resampling
 """
 
 from clustertk.evaluation.metrics import (
     compute_clustering_metrics,
+    cluster_balance_score,
     interpret_silhouette,
     get_metrics_summary,
     compare_clusterings
@@ -21,6 +22,7 @@ from clustertk.evaluation.stability import (
 
 __all__ = [
     'compute_clustering_metrics',
+    'cluster_balance_score',
     'interpret_silhouette',
     'get_metrics_summary',
     'compare_clusterings',

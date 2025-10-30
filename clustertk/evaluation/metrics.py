@@ -15,10 +15,87 @@ from sklearn.metrics import (
 )
 
 
+def cluster_balance_score(labels: np.ndarray) -> float:
+    """
+    Measure how balanced cluster sizes are.
+
+    Uses normalized Shannon entropy to measure cluster size distribution.
+    A perfectly balanced clustering (all clusters equal size) gets score 1.0.
+    A completely unbalanced clustering (99% in one cluster) gets score close to 0.
+
+    This metric is useful to detect when clustering produces one dominant cluster
+    with all other clusters being very small, which is often undesirable in practice.
+
+    Parameters
+    ----------
+    labels : np.ndarray
+        Cluster labels for each sample.
+
+    Returns
+    -------
+    balance : float
+        Balance score in range [0, 1]:
+        - 1.0 = perfectly balanced (all clusters equal size)
+        - >0.8 = well balanced
+        - 0.5-0.8 = moderately balanced
+        - <0.5 = imbalanced (some clusters much larger than others)
+        - ~0.0 = highly imbalanced (e.g., 99% in one cluster)
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from clustertk.evaluation import cluster_balance_score
+    >>>
+    >>> # Perfectly balanced (3 clusters, 100 samples each)
+    >>> labels = np.repeat([0, 1, 2], 100)
+    >>> print(cluster_balance_score(labels))  # ~1.0
+    >>>
+    >>> # Imbalanced (cluster 0 has 280 samples, others 10 each)
+    >>> labels = np.array([0]*280 + [1]*10 + [2]*10)
+    >>> print(cluster_balance_score(labels))  # ~0.46
+    >>>
+    >>> # Highly imbalanced (99% in one cluster)
+    >>> labels = np.array([0]*990 + [1]*5 + [2]*5)
+    >>> print(cluster_balance_score(labels))  # ~0.15
+    """
+    # Filter out noise points if using DBSCAN/HDBSCAN
+    mask = labels != -1
+    labels_filtered = labels[mask]
+
+    if len(labels_filtered) == 0:
+        return 0.0
+
+    # Get cluster sizes
+    unique_labels, counts = np.unique(labels_filtered, return_counts=True)
+
+    if len(unique_labels) < 2:
+        # Only one cluster - perfectly balanced by definition
+        return 1.0
+
+    # Calculate cluster proportions
+    proportions = counts / counts.sum()
+
+    # Shannon entropy (measures disorder/uniformity)
+    # Higher entropy = more uniform distribution = better balance
+    entropy = -np.sum(proportions * np.log(proportions + 1e-10))
+
+    # Maximum possible entropy (when all clusters are equal size)
+    max_entropy = np.log(len(unique_labels))
+
+    # Normalize to [0, 1]
+    if max_entropy > 0:
+        balance = entropy / max_entropy
+    else:
+        balance = 0.0
+
+    return balance
+
+
 def compute_clustering_metrics(
     X: pd.DataFrame,
     labels: np.ndarray,
-    metric_names: list = None
+    metric_names: list = None,
+    include_balance: bool = True
 ) -> Dict[str, float]:
     """
     Compute multiple clustering evaluation metrics.
@@ -33,7 +110,10 @@ def compute_clustering_metrics(
 
     metric_names : list, optional
         List of metrics to compute. If None, computes all metrics.
-        Available: 'silhouette', 'calinski_harabasz', 'davies_bouldin'
+        Available: 'silhouette', 'calinski_harabasz', 'davies_bouldin', 'cluster_balance'
+
+    include_balance : bool, default=True
+        Whether to include cluster balance score in the results.
 
     Returns
     -------
@@ -46,6 +126,7 @@ def compute_clustering_metrics(
     - Silhouette: [-1, 1], higher is better. >0.5 is good, >0.7 is excellent
     - Calinski-Harabasz: [0, inf), higher is better
     - Davies-Bouldin: [0, inf), lower is better
+    - Cluster Balance: [0, 1], higher is better. >0.8 is good, 1.0 is perfect balance
 
     Examples
     --------
@@ -57,9 +138,12 @@ def compute_clustering_metrics(
     >>> labels = np.random.randint(0, 3, 100)
     >>> metrics = compute_clustering_metrics(X, labels)
     >>> print(f"Silhouette: {metrics['silhouette']:.3f}")
+    >>> print(f"Balance: {metrics['cluster_balance']:.3f}")
     """
     if metric_names is None:
         metric_names = ['silhouette', 'calinski_harabasz', 'davies_bouldin']
+        if include_balance:
+            metric_names.append('cluster_balance')
 
     # Check if we have at least 2 clusters
     n_clusters = len(np.unique(labels))
@@ -91,6 +175,14 @@ def compute_clustering_metrics(
             metrics['davies_bouldin'] = np.nan
             import warnings
             warnings.warn(f"Could not compute Davies-Bouldin score: {e}", UserWarning)
+
+    if 'cluster_balance' in metric_names:
+        try:
+            metrics['cluster_balance'] = cluster_balance_score(labels)
+        except Exception as e:
+            metrics['cluster_balance'] = np.nan
+            import warnings
+            warnings.warn(f"Could not compute cluster balance score: {e}", UserWarning)
 
     return metrics
 
@@ -171,6 +263,25 @@ def get_metrics_summary(metrics: Dict[str, float]) -> pd.DataFrame:
             'value': db_score,
             'range': '[0, ∞)',
             'interpretation': 'Lower is better',
+            'quality': quality
+        })
+
+    if 'cluster_balance' in metrics:
+        balance_score = metrics['cluster_balance']
+        if balance_score > 0.8:
+            quality = 'Excellent'
+        elif balance_score > 0.6:
+            quality = 'Good'
+        elif balance_score > 0.4:
+            quality = 'Fair'
+        else:
+            quality = 'Poor'
+
+        summary_data.append({
+            'metric': 'Cluster Balance',
+            'value': balance_score,
+            'range': '[0, 1]',
+            'interpretation': 'Higher is better',
             'quality': quality
         })
 

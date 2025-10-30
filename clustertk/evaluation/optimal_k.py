@@ -5,9 +5,8 @@ This module provides functionality for determining the optimal number of cluster
 using various metrics and methods.
 """
 
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Optional
 import pandas as pd
-import numpy as np
 from clustertk.evaluation.metrics import compute_clustering_metrics
 
 
@@ -62,6 +61,7 @@ class OptimalKFinder:
         self,
         k_range: Tuple[int, int] = (2, 10),
         method: str = 'voting',
+        include_balance: bool = True,
         random_state: int = 42
     ):
         valid_methods = ['voting', 'silhouette', 'calinski_harabasz', 'davies_bouldin']
@@ -77,6 +77,7 @@ class OptimalKFinder:
 
         self.k_range = k_range
         self.method = method
+        self.include_balance = include_balance
         self.random_state = random_state
         self.results_: Optional[pd.DataFrame] = None
         self.optimal_k_: Optional[int] = None
@@ -116,8 +117,8 @@ class OptimalKFinder:
                 clusterer = clusterer_class(n_clusters=k, random_state=self.random_state)
             labels = clusterer.fit_predict(X)
 
-            # Compute metrics
-            metrics = compute_clustering_metrics(X, labels)
+            # Compute metrics (with balance if enabled)
+            metrics = compute_clustering_metrics(X, labels, include_balance=self.include_balance)
             metrics['k'] = k
 
             # Add inertia if available (for K-Means)
@@ -172,6 +173,13 @@ class OptimalKFinder:
             self.results_['davies_bouldin'].idxmin(), 'k'
         ]
         votes['davies_bouldin'] = int(k_db)
+
+        # Cluster Balance: higher is better (if included)
+        if self.include_balance and 'cluster_balance' in self.results_.columns:
+            k_balance = self.results_.loc[
+                self.results_['cluster_balance'].idxmax(), 'k'
+            ]
+            votes['cluster_balance'] = int(k_balance)
 
         self.metric_votes_ = votes
 
@@ -229,6 +237,9 @@ class OptimalKFinder:
         report.append(f"  - Silhouette: {optimal_row['silhouette']:.3f}")
         report.append(f"  - Calinski-Harabasz: {optimal_row['calinski_harabasz']:.1f}")
         report.append(f"  - Davies-Bouldin: {optimal_row['davies_bouldin']:.3f}")
+
+        if 'cluster_balance' in optimal_row:
+            report.append(f"  - Cluster Balance: {optimal_row['cluster_balance']:.3f}")
 
         return "\n".join(report)
 

@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-10-30
+
+### Added
+- **SmartCorrelationFilter** - Intelligent feature selection from correlated pairs
+  - **Hopkins statistic strategy** (`selection_strategy='hopkins'`, default)
+    - Measures clusterability of each feature
+    - Keeps features that are more suited for clustering
+    - Helps choose between equivalent representations (e.g., percent vs deciles)
+  - **Variance ratio strategy** (`selection_strategy='variance_ratio'`)
+    - Uses quick K-Means clustering to evaluate feature separation
+    - Higher variance ratio = better cluster separation
+  - **Backward compatible** (`selection_strategy='mean_corr'` = old behavior)
+  - **New methods:**
+    - `get_feature_scores()` - view clusterability scores for all features
+    - `get_selection_summary()` - detailed report of selection decisions
+  - Enabled by default in Pipeline (`smart_correlation=True`)
+
+- **Cluster Balance Metric** - Measure cluster size distribution
+  - `cluster_balance_score()` - normalized Shannon entropy [0, 1]
+    - 1.0 = perfectly balanced (all clusters equal size)
+    - >0.8 = well balanced
+    - <0.5 = imbalanced (some clusters much larger)
+    - ~0.0 = highly imbalanced (e.g., 99% in one cluster)
+  - **Automatic handling of:**
+    - DBSCAN/HDBSCAN noise points (-1 labels)
+    - Single cluster edge case
+    - Empty clusters after filtering
+
+### Changed
+- **Pipeline** - Enhanced feature selection
+  - Added `smart_correlation` parameter (default: `True`)
+  - Added `correlation_strategy` parameter (default: `'hopkins'`)
+  - Verbose output now shows smart selection reasoning
+  - Backward compatible: set `smart_correlation=False` for old behavior
+
+- **Evaluation** - Cluster balance integrated throughout
+  - `compute_clustering_metrics()` includes `cluster_balance` by default
+  - `get_metrics_summary()` includes balance with quality thresholds
+  - `OptimalKFinder` uses balance as 4th metric in voting
+  - `compare_algorithms()` uses balance in weighted scoring (15% weight)
+  - Weights adjusted: silhouette 35%, calinski 25%, davies-bouldin 25%, balance 15%
+
+### Fixed
+- Removed unused imports in `optimal_k.py` (basedpyright warnings)
+
+### Tests
+- Added `test_smart_correlation.py` - 9 comprehensive tests (90% coverage)
+- Added `test_cluster_balance.py` - 12 comprehensive tests (100% coverage)
+- All 21 new tests pass ✅
+
+### Use Cases
+This release solves the common analyst problem:
+- **Problem:** "I have multiple representations of the same metric (percent, deciles, log-transformed) and don't know which is best for clustering"
+- **Solution:** SmartCorrelationFilter automatically selects the representation with better clusterability using Hopkins statistic
+- **Problem:** "My clustering produces one huge cluster with tiny others"
+- **Solution:** cluster_balance_score detects imbalanced clusterings, and compare_algorithms() now considers balance when recommending algorithms
+
 ## [0.10.2] - 2025-10-30
 
 ### Improved

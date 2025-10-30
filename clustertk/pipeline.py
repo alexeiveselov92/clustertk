@@ -159,6 +159,8 @@ class ClusterAnalysisPipeline:
         # Feature selection parameters
         correlation_threshold: float = 0.85,
         variance_threshold: float = 0.01,
+        smart_correlation: bool = True,
+        correlation_strategy: Literal['hopkins', 'variance_ratio', 'mean_corr'] = 'hopkins',
         # Dimensionality reduction parameters
         pca_variance: float = 0.9,
         pca_min_components: int = 2,
@@ -181,6 +183,8 @@ class ClusterAnalysisPipeline:
         self.skewness_threshold = skewness_threshold
         self.correlation_threshold = correlation_threshold
         self.variance_threshold = variance_threshold
+        self.smart_correlation = smart_correlation
+        self.correlation_strategy = correlation_strategy
         self.pca_variance = pca_variance
         self.pca_min_components = pca_min_components
         self.clustering_algorithm = clustering_algorithm
@@ -431,7 +435,7 @@ class ClusterAnalysisPipeline:
         -------
         self : ClusterAnalysisPipeline
         """
-        from clustertk.feature_selection import CorrelationFilter, VarianceFilter
+        from clustertk.feature_selection import CorrelationFilter, SmartCorrelationFilter, VarianceFilter
 
         if self.verbose:
             print("\nStep 2/6: Selecting features...")
@@ -454,17 +458,28 @@ class ClusterAnalysisPipeline:
         # Step 2.2: Remove highly correlated features
         if self.correlation_threshold < 1.0:
             if self.verbose:
-                print(f"  Removing highly correlated features (threshold: {self.correlation_threshold})...")
+                filter_type = "Smart" if self.smart_correlation else "Basic"
+                print(f"  Removing highly correlated features (threshold: {self.correlation_threshold}, {filter_type} filter)...")
 
-            self._correlation_filter = CorrelationFilter(
-                threshold=self.correlation_threshold,
-                method='pearson'
-            )
+            if self.smart_correlation:
+                self._correlation_filter = SmartCorrelationFilter(
+                    threshold=self.correlation_threshold,
+                    method='pearson',
+                    selection_strategy=self.correlation_strategy,
+                    verbose=self.verbose
+                )
+            else:
+                self._correlation_filter = CorrelationFilter(
+                    threshold=self.correlation_threshold,
+                    method='pearson'
+                )
             data_working = self._correlation_filter.fit_transform(data_working)
 
             removed_count = len(self._correlation_filter.features_to_drop_)
             if self.verbose and removed_count > 0:
                 print(f"    ✓ Removed {removed_count} highly correlated features")
+                if hasattr(self._correlation_filter, 'selection_reasons_') and self._correlation_filter.selection_reasons_:
+                    print(f"    Smart selection: kept features with better clusterability ({self.correlation_strategy})")
                 if self._correlation_filter.high_correlation_pairs_:
                     print(f"    Found {len(self._correlation_filter.high_correlation_pairs_)} "
                           f"high correlation pairs")
@@ -2203,7 +2218,7 @@ class ClusterAnalysisPipeline:
             n_clusters_range = self.n_clusters_range if hasattr(self, 'n_clusters_range') else (2, 8)
 
         if metrics is None:
-            metrics = ['silhouette', 'calinski_harabasz', 'davies_bouldin']
+            metrics = ['silhouette', 'calinski_harabasz', 'davies_bouldin', 'cluster_balance']
 
         # Storage for results
         comparison_data = []
@@ -2228,6 +2243,8 @@ class ClusterAnalysisPipeline:
                     skewness_threshold=self.skewness_threshold,
                     correlation_threshold=self.correlation_threshold,
                     variance_threshold=self.variance_threshold,
+                    smart_correlation=self.smart_correlation,
+                    correlation_strategy=self.correlation_strategy,
                     pca_variance=self.pca_variance,
                     pca_min_components=self.pca_min_components,
                     # Algorithm-specific settings
@@ -2322,9 +2339,10 @@ class ClusterAnalysisPipeline:
         Select best algorithm based on metrics.
 
         Uses weighted scoring:
-        - Silhouette: higher is better (weight: 0.4)
-        - Calinski-Harabasz: higher is better (weight: 0.3)
-        - Davies-Bouldin: lower is better (weight: 0.3)
+        - Silhouette: higher is better (weight: 0.35)
+        - Calinski-Harabasz: higher is better (weight: 0.25)
+        - Davies-Bouldin: lower is better (weight: 0.25)
+        - Cluster Balance: higher is better (weight: 0.15)
 
         Returns
         -------
@@ -2353,8 +2371,8 @@ class ClusterAnalysisPipeline:
             if 'silhouette' in row and pd.notna(row['silhouette']):
                 # Silhouette is already in [-1, 1], shift to [0, 1]
                 normalized = (row['silhouette'] + 1) / 2
-                score += normalized * 0.4
-                weight_sum += 0.4
+                score += normalized * 0.35
+                weight_sum += 0.35
 
             # Calinski-Harabasz (higher is better)
             if 'calinski_harabasz' in row and pd.notna(row['calinski_harabasz']):
@@ -2362,8 +2380,8 @@ class ClusterAnalysisPipeline:
                 max_ch = valid_df['calinski_harabasz'].max()
                 if max_ch > 0:
                     normalized = row['calinski_harabasz'] / max_ch
-                    score += normalized * 0.3
-                    weight_sum += 0.3
+                    score += normalized * 0.25
+                    weight_sum += 0.25
 
             # Davies-Bouldin (lower is better)
             if 'davies_bouldin' in row and pd.notna(row['davies_bouldin']):
@@ -2372,8 +2390,15 @@ class ClusterAnalysisPipeline:
                 min_db = valid_df['davies_bouldin'].min()
                 if max_db > min_db:
                     normalized = 1 - (row['davies_bouldin'] - min_db) / (max_db - min_db)
-                    score += normalized * 0.3
-                    weight_sum += 0.3
+                    score += normalized * 0.25
+                    weight_sum += 0.25
+
+            # Cluster Balance (higher is better)
+            if 'cluster_balance' in row and pd.notna(row['cluster_balance']):
+                # Balance is already in [0, 1]
+                normalized = row['cluster_balance']
+                score += normalized * 0.15
+                weight_sum += 0.15
 
             # Average score
             if weight_sum > 0:
