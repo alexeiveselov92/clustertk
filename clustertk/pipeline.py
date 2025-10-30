@@ -168,6 +168,7 @@ class ClusterAnalysisPipeline:
         clustering_algorithm: Union[str, object] = 'kmeans',
         n_clusters: Optional[Union[int, List[int]]] = None,
         n_clusters_range: tuple = (2, 10),
+        clustering_params: Optional[Dict[str, Any]] = None,
         # Naming parameters
         auto_name_clusters: bool = False,
         naming_max_features: int = 2,
@@ -190,6 +191,7 @@ class ClusterAnalysisPipeline:
         self.clustering_algorithm = clustering_algorithm
         self.n_clusters = n_clusters
         self.n_clusters_range = n_clusters_range
+        self.clustering_params = clustering_params or {}
         self.auto_name_clusters = auto_name_clusters
         self.naming_max_features = naming_max_features
         self.random_state = random_state
@@ -655,31 +657,47 @@ class ClusterAnalysisPipeline:
         # Initialize clusterer
         if isinstance(algo, str):
             if algo == 'kmeans':
-                self._clusterer = KMeansClustering(
-                    n_clusters=self.n_clusters_,
-                    random_state=self.random_state
-                )
+                # Merge default params with user params
+                params = {
+                    'n_clusters': self.n_clusters_,
+                    'random_state': self.random_state,
+                    **self.clustering_params
+                }
+                self._clusterer = KMeansClustering(**params)
+
             elif algo == 'gmm':
-                self._clusterer = GMMClustering(
-                    n_clusters=self.n_clusters_,
-                    random_state=self.random_state
-                )
+                params = {
+                    'n_clusters': self.n_clusters_,
+                    'random_state': self.random_state,
+                    **self.clustering_params
+                }
+                self._clusterer = GMMClustering(**params)
+
             elif algo == 'hierarchical':
-                self._clusterer = HierarchicalClustering(
-                    n_clusters=self.n_clusters_,
-                    linkage='ward',  # Default linkage
-                    metric='euclidean'
-                )
+                params = {
+                    'n_clusters': self.n_clusters_,
+                    'linkage': 'ward',
+                    'metric': 'euclidean',
+                    **self.clustering_params
+                }
+                self._clusterer = HierarchicalClustering(**params)
+
             elif algo == 'dbscan':
-                self._clusterer = DBSCANClustering(
-                    eps='auto',  # Auto-estimate eps
-                    min_samples='auto'  # Auto-estimate min_samples
-                )
+                params = {
+                    'eps': 'auto',
+                    'min_samples': 'auto',
+                    **self.clustering_params
+                }
+                self._clusterer = DBSCANClustering(**params)
+
             elif algo == 'hdbscan':
-                self._clusterer = HDBSCANClustering(
-                    min_cluster_size='auto',  # Auto-estimate min_cluster_size
-                    min_samples='auto'  # Auto-estimate min_samples
-                )
+                params = {
+                    'min_cluster_size': 'auto',
+                    'min_samples': 'auto',
+                    **self.clustering_params
+                }
+                self._clusterer = HDBSCANClustering(**params)
+
             else:
                 raise ValueError(
                     f"Unknown algorithm '{algo}'. "

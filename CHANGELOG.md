@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-10-30
+
+### Added
+- **Algorithm-specific parameters** via `clustering_params` dict
+  - Pass custom parameters to any clustering algorithm
+  - Example: `ClusterAnalysisPipeline(clustering_algorithm='hdbscan', clustering_params={'min_cluster_size': 50})`
+  - Works with all algorithms: kmeans, gmm, hierarchical, dbscan, hdbscan
+  - Parameters override defaults but preserve backward compatibility
+
+- **Noise points statistics** for DBSCAN/HDBSCAN
+  - Automatically detect and count noise points (label -1)
+  - New metrics: `n_noise` (count) and `noise_ratio` (percentage)
+  - Shown in `get_metrics_summary()` with quality assessment
+  - Metrics computed on non-noise points only (correct behavior)
+
+### Fixed
+- Clustering metrics now correctly filter out noise points before computation
+- Silhouette/Calinski-Harabasz/Davies-Bouldin now use only labeled points
+
+### Use Cases
+- **HDBSCAN customization:** `clustering_params={'min_cluster_size': 100, 'min_samples': 5}`
+- **DBSCAN tuning:** `clustering_params={'eps': 0.3, 'min_samples': 10}`
+- **Hierarchical linkage:** `clustering_params={'linkage': 'complete'}`
+- **Track noise:** See how many points couldn't be assigned to clusters
+
 ## [0.11.1] - 2025-10-30
 
 ### Fixed

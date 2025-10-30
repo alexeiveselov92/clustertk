@@ -95,7 +95,8 @@ def compute_clustering_metrics(
     X: pd.DataFrame,
     labels: np.ndarray,
     metric_names: list = None,
-    include_balance: bool = True
+    include_balance: bool = True,
+    include_noise_stats: bool = True
 ) -> Dict[str, float]:
     """
     Compute multiple clustering evaluation metrics.
@@ -115,10 +116,14 @@ def compute_clustering_metrics(
     include_balance : bool, default=True
         Whether to include cluster balance score in the results.
 
+    include_noise_stats : bool, default=True
+        Whether to include noise point statistics (for DBSCAN/HDBSCAN).
+
     Returns
     -------
     metrics : dict
         Dictionary mapping metric names to values.
+        If noise points exist, includes 'n_noise' and 'noise_ratio'.
 
     Notes
     -----
@@ -127,6 +132,7 @@ def compute_clustering_metrics(
     - Calinski-Harabasz: [0, inf), higher is better
     - Davies-Bouldin: [0, inf), lower is better
     - Cluster Balance: [0, 1], higher is better. >0.8 is good, 1.0 is perfect balance
+    - Noise Ratio: [0, 1], proportion of points classified as noise (-1 label)
 
     Examples
     --------
@@ -145,16 +151,34 @@ def compute_clustering_metrics(
         if include_balance:
             metric_names.append('cluster_balance')
 
-    # Check if we have at least 2 clusters
-    n_clusters = len(np.unique(labels))
+    # Check for noise points (DBSCAN/HDBSCAN use -1 for noise)
+    has_noise = np.any(labels == -1)
+    n_noise = np.sum(labels == -1) if has_noise else 0
+
+    # Filter noise points for metric computation
+    if has_noise:
+        mask = labels != -1
+        X_filtered = X[mask]
+        labels_filtered = labels[mask]
+    else:
+        X_filtered = X
+        labels_filtered = labels
+
+    # Check if we have at least 2 clusters (excluding noise)
+    n_clusters = len(np.unique(labels_filtered))
     if n_clusters < 2:
         raise ValueError("Need at least 2 clusters to compute metrics")
 
     metrics = {}
 
+    # Add noise statistics if requested
+    if include_noise_stats and has_noise:
+        metrics['n_noise'] = int(n_noise)
+        metrics['noise_ratio'] = float(n_noise / len(labels))
+
     if 'silhouette' in metric_names:
         try:
-            metrics['silhouette'] = silhouette_score(X, labels)
+            metrics['silhouette'] = silhouette_score(X_filtered, labels_filtered)
         except Exception as e:
             metrics['silhouette'] = np.nan
             import warnings
@@ -162,7 +186,7 @@ def compute_clustering_metrics(
 
     if 'calinski_harabasz' in metric_names:
         try:
-            metrics['calinski_harabasz'] = calinski_harabasz_score(X, labels)
+            metrics['calinski_harabasz'] = calinski_harabasz_score(X_filtered, labels_filtered)
         except Exception as e:
             metrics['calinski_harabasz'] = np.nan
             import warnings
@@ -170,7 +194,7 @@ def compute_clustering_metrics(
 
     if 'davies_bouldin' in metric_names:
         try:
-            metrics['davies_bouldin'] = davies_bouldin_score(X, labels)
+            metrics['davies_bouldin'] = davies_bouldin_score(X_filtered, labels_filtered)
         except Exception as e:
             metrics['davies_bouldin'] = np.nan
             import warnings
@@ -282,6 +306,26 @@ def get_metrics_summary(metrics: Dict[str, float]) -> pd.DataFrame:
             'value': balance_score,
             'range': '[0, 1]',
             'interpretation': 'Higher is better',
+            'quality': quality
+        })
+
+    # Add noise statistics if present
+    if 'n_noise' in metrics:
+        noise_ratio = metrics['noise_ratio']
+        if noise_ratio < 0.05:
+            quality = 'Excellent'
+        elif noise_ratio < 0.10:
+            quality = 'Good'
+        elif noise_ratio < 0.20:
+            quality = 'Fair'
+        else:
+            quality = 'Poor (high noise)'
+
+        summary_data.append({
+            'metric': 'Noise Points',
+            'value': f"{metrics['n_noise']} ({noise_ratio:.1%})",
+            'range': 'N/A',
+            'interpretation': 'Lower is better',
             'quality': quality
         })
 
