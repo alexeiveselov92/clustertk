@@ -254,32 +254,35 @@ class FeatureImportanceAnalyzer:
                 'contribution': [0.0] * len(X.columns)
             })
 
+        # Relabel clusters to 0, 1, 2, ... for efficient np.bincount
+        label_map = {old: new for new, old in enumerate(unique_labels)}
+        labels_remapped = np.array([label_map[l] for l in labels_filtered])
+        n_clusters = len(unique_labels)
+
         for col in X.columns:
             feature_data = X[col].values[mask]
 
-            # Vectorized computation using groupby
-            df_temp = pd.DataFrame({
-                'value': feature_data,
-                'label': labels_filtered
-            })
+            # Fully vectorized NumPy computation using bincount (no loops!)
+            # This is true vectorization - much faster than list comprehensions
+            cluster_sums = np.bincount(labels_remapped, weights=feature_data, minlength=n_clusters)
+            cluster_counts = np.bincount(labels_remapped, minlength=n_clusters)
+            cluster_means = cluster_sums / cluster_counts
 
-            # Compute cluster statistics in one pass
-            cluster_stats = df_temp.groupby('label')['value'].agg(['mean', 'count', 'var'])
-            cluster_means = cluster_stats['mean'].values
-            cluster_sizes = cluster_stats['count'].values
-            cluster_vars = cluster_stats['var'].values
+            # Compute variances vectorized
+            squared_diffs = (feature_data - cluster_means[labels_remapped])**2
+            cluster_squared_sums = np.bincount(labels_remapped, weights=squared_diffs, minlength=n_clusters)
+            cluster_vars = cluster_squared_sums / (cluster_counts - 1)
 
-            # Overall mean
+            # Overall mean (vectorized)
             overall_mean = feature_data.mean()
 
-            # Between-cluster variance (vectorized)
+            # Between-cluster variance (fully vectorized)
             between_var = np.sum(
-                cluster_sizes * (cluster_means - overall_mean)**2
-            ) / cluster_sizes.sum()
+                cluster_counts * (cluster_means - overall_mean)**2
+            ) / cluster_counts.sum()
 
-            # Within-cluster variance (vectorized)
-            # sum(size * var) / total_size is equivalent to pooled variance
-            within_var = np.sum(cluster_sizes * cluster_vars) / cluster_sizes.sum()
+            # Within-cluster variance (fully vectorized)
+            within_var = np.sum(cluster_counts * cluster_vars) / cluster_counts.sum()
 
             # Variance ratio (higher = better separation)
             if within_var > 0:
