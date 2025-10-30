@@ -266,6 +266,57 @@ pipeline = ClusterAnalysisPipeline(
 
 **Важно:** Winsorize решает UNIVARIATE outliers (per-feature). Для MULTIVARIATE outliers (выбросы в многомерном пространстве) нужен MultivariateOutlierDetector (планируется v0.13.0).
 
+**КРИТИЧНО: Почему StandardScaler/RobustScaler НЕ решают проблему выбросов?**
+
+Частый вопрос: "Мы же применяем scaling перед кластеризацией, разве StandardScaler не нормализует выбросы?"
+
+**НЕТ!** StandardScaler и RobustScaler НЕ удаляют и НЕ уменьшают выбросы:
+
+Пример: revenue = [100, 150, 200, 180, 220, 190, 10000, 12000, 15000]
+
+```python
+# StandardScaler: (x - mean) / std
+# mean = 4226.7, std = 6208.9 (искажены выбросами!)
+# Результат:
+#   Normal: -0.705 to -0.684 (range: 0.021)
+#   Outliers: 0.986 to 1.840 (range: 0.854)
+# Выбросы все еще в 40x-80x раз дальше от нормальных!
+
+# RobustScaler: (x - median) / IQR
+# median = 200, IQR = 9820
+# Результат:
+#   Normal: -0.010 to 0.002 (range: 0.012)
+#   Outliers: 0.998 to 1.507 (range: 0.509)
+# Выбросы все еще в 80x-120x раз дальше!
+```
+
+**Почему это проблема для K-Means:**
+- Euclidean distance между normal точками: ~0.01-0.02
+- Euclidean distance от normal до outlier: ~1.0-1.5
+- K-Means видит: "куча точек близко" + "3 точки очень далеко"
+- Результат: 1 большой кластер (90%) + 2-3 маленьких кластера (по 1-2%)
+- Silhouette score высокий (~0.95), но кластеризация бесполезна!
+
+**Решение: Winsorize ДО scaling**
+
+Execution order в Pipeline:
+1. **Winsorize** → clips outliers to 2.5%-97.5% percentiles
+2. **StandardScaler/RobustScaler** → normalizes scale
+3. **K-Means** → корректная кластеризация на адекватных данных
+
+```python
+# ✅ ПРАВИЛЬНО (v0.12.1+):
+pipeline = ClusterAnalysisPipeline(
+    handle_outliers='winsorize',  # Обрезаем ПЕРЕД scaling
+    scaling='robust'
+)
+
+# ❌ НЕПРАВИЛЬНО (старый default):
+pipeline = ClusterAnalysisPipeline(
+    handle_outliers='robust',  # Только RobustScaler, выбросы остаются!
+)
+```
+
 ## История релизов
 
 - **v0.1.0** (первый релиз) - базовый pipeline без DBSCAN, Hierarchical, visualization, naming
