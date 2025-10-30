@@ -5,7 +5,7 @@ This module provides the ClusterAnalysisPipeline class, which orchestrates
 the entire clustering workflow from preprocessing to interpretation.
 """
 
-from typing import Optional, Union, List, Dict, Any, Callable, Literal
+from typing import Optional, Union, List, Dict, Any, Callable, Literal, Tuple
 import warnings
 import pandas as pd
 import numpy as np
@@ -44,13 +44,23 @@ class ClusterAnalysisPipeline:
         Strategy for handling UNIVARIATE outliers (per-feature extremes) before scaling.
         Options:
         - 'winsorize': Clip to percentile bounds (RECOMMENDED, default since v0.13.0)
-          Clips outliers to 2.5%-97.5% percentiles before scaling.
+          Clips outliers to percentiles specified by outlier_percentiles.
           Best for extreme/asymmetric outliers. Works with any distribution.
         - 'robust': Use RobustScaler only (no outlier removal)
           WARNING: Outliers remain far away after scaling, may create tiny clusters!
         - 'clip': Clip outliers to IQR bounds before scaling
         - 'remove': Remove rows with outliers (data loss)
         - None: No univariate outlier handling
+
+    outlier_percentiles : tuple of (float, float), default=(0.025, 0.975)
+        Percentile limits for winsorization when handle_outliers='winsorize'.
+        Format: (lower_percentile, upper_percentile).
+        Default (0.025, 0.975) clips 2.5% from each tail (5% total, ~±2σ for normal dist).
+        Common alternatives:
+        - (0.01, 0.99): Very mild, clips 2% total (extreme outliers only)
+        - (0.025, 0.975): Balanced (default), clips 5% total
+        - (0.05, 0.95): Aggressive, clips 10% total (risk of information loss)
+        Only used when handle_outliers='winsorize'.
 
     detect_multivariate_outliers : str or None, default=None
         Strategy for detecting MULTIVARIATE outliers (outliers in full feature space).
@@ -241,6 +251,17 @@ class ClusterAnalysisPipeline:
     ...     clustering_algorithm='dbscan'
     ... )
     >>> pipeline.fit(df)  # doctest: +SKIP
+
+    Custom outlier percentiles for extreme data:
+
+    >>> # Financial data with extreme outliers - use aggressive winsorization
+    >>> pipeline = ClusterAnalysisPipeline(
+    ...     handle_outliers='winsorize',
+    ...     outlier_percentiles=(0.05, 0.95),  # Clip 10% total (5% each tail)
+    ...     clustering_algorithm='kmeans',
+    ...     n_clusters=3
+    ... )
+    >>> pipeline.fit(financial_df)  # doctest: +SKIP
     """
 
     def __init__(
@@ -248,6 +269,7 @@ class ClusterAnalysisPipeline:
         # Preprocessing parameters
         handle_missing: Union[str, Callable] = 'median',
         handle_outliers: Optional[str] = 'winsorize',
+        outlier_percentiles: Tuple[float, float] = (0.025, 0.975),
         detect_multivariate_outliers: Optional[str] = None,
         multivariate_contamination: float = 0.05,
         multivariate_action: Literal['remove', 'flag'] = 'remove',
@@ -282,6 +304,7 @@ class ClusterAnalysisPipeline:
         # Store parameters
         self.handle_missing = handle_missing
         self.handle_outliers = handle_outliers
+        self.outlier_percentiles = outlier_percentiles
         self.detect_multivariate_outliers = detect_multivariate_outliers
         self.multivariate_contamination = multivariate_contamination
         self.multivariate_action = multivariate_action
@@ -522,11 +545,13 @@ class ClusterAnalysisPipeline:
             self._scaler = ScalerSelector(scaler_type=self.scaling)
         elif self.handle_outliers == 'winsorize':
             # Winsorize outliers using percentile-based clipping (recommended)
-            self._outlier_handler = OutlierHandler(action='winsorize', percentile_limits=(0.025, 0.975))
+            self._outlier_handler = OutlierHandler(action='winsorize', percentile_limits=self.outlier_percentiles)
             data_working = self._outlier_handler.fit_transform(data_working)
             self._scaler = ScalerSelector(scaler_type=self.scaling)
             if self.verbose:
-                print(f"    Outliers winsorized to 2.5%-97.5% percentile range")
+                lower_pct = self.outlier_percentiles[0] * 100
+                upper_pct = self.outlier_percentiles[1] * 100
+                print(f"    Outliers winsorized to {lower_pct:.1f}%-{upper_pct:.1f}% percentile range")
         elif self.handle_outliers == 'remove':
             # Remove outliers
             self._outlier_handler = OutlierHandler(method='iqr', action='remove', threshold=1.5)
