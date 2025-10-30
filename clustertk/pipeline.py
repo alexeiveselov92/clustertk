@@ -1395,6 +1395,369 @@ class ClusterAnalysisPipeline:
 
         return results
 
+    def get_pca_feature_importance(self) -> pd.DataFrame:
+        """
+        Get original feature importance from PCA components.
+
+        Shows which original features contribute most to the PCA components
+        that were used for clustering. Useful for understanding what drives
+        the clustering structure.
+
+        Returns
+        -------
+        importance : pd.DataFrame
+            DataFrame with columns:
+            - 'feature': Original feature name
+            - 'total_loading': Sum of absolute loadings across all PCA components
+            - 'relative_importance': Proportion of total loading (0-1)
+            Sorted by total_loading in descending order.
+
+        Raises
+        ------
+        ValueError
+            If PCA was not used (dim_reduction != 'pca') or pipeline not fitted.
+
+        Examples
+        --------
+        >>> pipeline = ClusterAnalysisPipeline(dim_reduction='pca')
+        >>> pipeline.fit(df)
+        >>> importance = pipeline.get_pca_feature_importance()
+        >>> print(importance.head(10))  # Top 10 most important features
+        >>>
+        >>> # Use top features for focused analysis
+        >>> top_features = importance.head(5)['feature'].tolist()
+        >>> pipeline_focused = ClusterAnalysisPipeline()
+        >>> pipeline_focused.fit(df[top_features])
+
+        Notes
+        -----
+        - Only works when dim_reduction='pca' or auto-selected as PCA
+        - Features with higher loadings contribute more to cluster structure
+        - Helps interpret PCA-based clustering results
+        - Can guide feature selection for refit_with_top_features()
+        """
+        # Check if PCA was used
+        if self._reducer is None:
+            raise ValueError(
+                "No dimensionality reduction was applied. "
+                "Use dim_reduction='pca' or 'auto' (which may select PCA)."
+            )
+
+        # Check if it's PCAReducer with fitted PCA
+        if not hasattr(self._reducer, 'pca_') or not hasattr(self._reducer.pca_, 'components_'):
+            raise ValueError(
+                f"PCA feature importance only available when dim_reduction='pca'. "
+                f"Current reducer type: {type(self._reducer).__name__}"
+            )
+
+        # Check if fitted
+        if self.selected_features_ is None:
+            raise ValueError(
+                "Pipeline must be fitted before analyzing PCA feature importance. "
+                "Call fit() first."
+            )
+
+        if self.verbose:
+            print("\nAnalyzing PCA feature importance...")
+
+        # Get PCA loadings (original features x PCA components)
+        loadings = pd.DataFrame(
+            self._reducer.pca_.components_.T,
+            columns=[f'PC{i+1}' for i in range(self._reducer.n_components_)],
+            index=self.selected_features_
+        )
+
+        # Calculate total contribution (sum of absolute loadings)
+        total_loading = loadings.abs().sum(axis=1)
+
+        # Create importance DataFrame
+        importance = pd.DataFrame({
+            'feature': total_loading.index,
+            'total_loading': total_loading.values,
+            'relative_importance': total_loading.values / total_loading.sum()
+        }).sort_values('total_loading', ascending=False).reset_index(drop=True)
+
+        if self.verbose:
+            print(f"✓ PCA feature importance computed for {len(importance)} features")
+            print("\nTop 5 features by PCA loadings:")
+            for idx, row in importance.head(5).iterrows():
+                print(f"  {row['feature']}: {row['total_loading']:.4f} ({row['relative_importance']:.1%})")
+
+        return importance
+
+    def refit_with_top_features(
+        self,
+        n_features: int,
+        importance_method: Literal['permutation', 'contribution', 'pca'] = 'permutation',
+        compare_metrics: bool = True,
+        update_pipeline: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Refit clustering pipeline using only top N most important features.
+
+        Performs iterative feature selection:
+        1. Identifies top N features using specified importance method
+        2. Re-clusters data using only these features
+        3. Compares metrics with original clustering
+        4. Optionally updates pipeline if metrics improved
+
+        This helps answer: "Would clustering be better with fewer, more relevant features?"
+
+        Parameters
+        ----------
+        n_features : int
+            Number of top features to use for refitting.
+            Must be > 0 and <= number of selected features.
+        importance_method : {'permutation', 'contribution', 'pca'}, default='permutation'
+            Method to determine feature importance:
+            - 'permutation': Use permutation importance (best for clustering quality)
+            - 'contribution': Use feature contribution (variance ratio)
+            - 'pca': Use PCA loadings (only if dim_reduction='pca')
+        compare_metrics : bool, default=True
+            Whether to print comparison of metrics (original vs refitted).
+        update_pipeline : bool, default=False
+            Whether to update current pipeline with refitted results.
+            If True and metrics improved, replaces current clustering.
+            If False, returns comparison without changing pipeline.
+
+        Returns
+        -------
+        comparison : dict
+            Dictionary with comparison results:
+            - 'top_features': List of selected feature names
+            - 'original_metrics': Original clustering metrics
+            - 'refitted_metrics': New clustering metrics with top features
+            - 'metrics_improved': Bool, True if refitted metrics are better
+            - 'improvement_summary': Dict with metric changes
+            - 'refitted_labels': Cluster labels from refitted clustering
+            - 'refitted_profiles': Cluster profiles from refitted clustering
+
+        Examples
+        --------
+        >>> # Fit pipeline on all features
+        >>> pipeline = ClusterAnalysisPipeline(dim_reduction='pca')
+        >>> pipeline.fit(df)  # 30 features
+        >>>
+        >>> # Try refitting with top 10 features
+        >>> comparison = pipeline.refit_with_top_features(
+        ...     n_features=10,
+        ...     importance_method='permutation',
+        ...     compare_metrics=True,
+        ...     update_pipeline=False  # Just compare, don't update
+        ... )
+        >>>
+        >>> # If metrics improved, update pipeline
+        >>> if comparison['metrics_improved']:
+        ...     comparison = pipeline.refit_with_top_features(
+        ...         n_features=10,
+        ...         update_pipeline=True  # Now update pipeline
+        ...     )
+
+        Notes
+        -----
+        - Requires pipeline to be fitted first
+        - 'permutation' importance is generally best for clustering
+        - 'pca' method only works if dim_reduction='pca'
+        - Silhouette score improvement is weighted most heavily (50%)
+        - Use update_pipeline=True only if metrics clearly improved
+        """
+        # Validate prerequisites
+        if self.data_ is None or self.labels_ is None:
+            raise ValueError(
+                "Pipeline must be fitted before refitting with top features. "
+                "Call fit() first."
+            )
+
+        if n_features <= 0 or n_features > len(self.selected_features_):
+            raise ValueError(
+                f"n_features must be between 1 and {len(self.selected_features_)} "
+                f"(number of selected features). Got {n_features}."
+            )
+
+        if self.verbose:
+            print("\n" + "=" * 80)
+            print(f"REFITTING WITH TOP {n_features} FEATURES (method={importance_method})")
+            print("=" * 80)
+
+        # Step 1: Get top features based on importance method
+        if importance_method == 'pca':
+            if self._reducer is None or not hasattr(self._reducer, 'pca_'):
+                raise ValueError(
+                    "importance_method='pca' requires dim_reduction='pca'. "
+                    "Use 'permutation' or 'contribution' instead."
+                )
+            importance_df = self.get_pca_feature_importance()
+            top_features = importance_df.head(n_features)['feature'].tolist()
+
+        elif importance_method in ['permutation', 'contribution']:
+            # Run feature importance analysis if not already done
+            if not hasattr(self, 'feature_importance_results_'):
+                if self.verbose:
+                    print(f"\nStep 1: Analyzing feature importance ({importance_method})...")
+                self.analyze_feature_importance(method=importance_method)
+
+            # Get top features
+            if importance_method == 'permutation':
+                importance_df = self.feature_importance_results_['permutation']
+                score_col = 'importance'
+            else:  # contribution
+                importance_df = self.feature_importance_results_['contribution']
+                score_col = 'contribution'
+
+            top_features = importance_df.head(n_features)['feature'].tolist()
+
+        else:
+            raise ValueError(
+                f"Unknown importance_method: {importance_method}. "
+                f"Use 'permutation', 'contribution', or 'pca'."
+            )
+
+        if self.verbose:
+            print(f"\nStep 1: Selected top {n_features} features:")
+            for i, feat in enumerate(top_features[:10], 1):  # Show first 10
+                print(f"  {i}. {feat}")
+            if len(top_features) > 10:
+                print(f"  ... and {len(top_features) - 10} more")
+
+        # Step 2: Refit clustering on top features only
+        if self.verbose:
+            print(f"\nStep 2: Refitting clustering on {n_features} features...")
+
+        # Create new pipeline with same parameters
+        refitted_pipeline = ClusterAnalysisPipeline(
+            handle_missing=self.handle_missing,
+            handle_outliers=self.handle_outliers,
+            outlier_percentiles=self.outlier_percentiles,
+            detect_multivariate_outliers=self.detect_multivariate_outliers,
+            multivariate_contamination=self.multivariate_contamination,
+            multivariate_action=self.multivariate_action,
+            scaling=self.scaling,
+            log_transform_skewed=self.log_transform_skewed,
+            skewness_threshold=self.skewness_threshold,
+            correlation_threshold=self.correlation_threshold,
+            variance_threshold=self.variance_threshold,
+            smart_correlation=self.smart_correlation,
+            correlation_strategy=self.correlation_strategy,
+            dim_reduction=self.dim_reduction,
+            pca_variance=self.pca_variance,
+            pca_min_components=self.pca_min_components,
+            umap_n_neighbors=self.umap_n_neighbors,
+            umap_min_dist=self.umap_min_dist,
+            umap_n_components=self.umap_n_components,
+            umap_metric=self.umap_metric,
+            clustering_algorithm=self.clustering_algorithm,
+            n_clusters=self.n_clusters_,  # Use same number of clusters
+            clustering_params=self.clustering_params,
+            auto_name_clusters=self.auto_name_clusters,
+            naming_max_features=self.naming_max_features,
+            random_state=self.random_state,
+            verbose=False  # Suppress verbose for refitted pipeline
+        )
+
+        # Fit on original data with only top features
+        refitted_pipeline.fit(
+            X=self.data_[top_features],
+            feature_columns=top_features
+        )
+
+        # Step 3: Compare metrics
+        original_metrics = self.metrics_.copy()
+        refitted_metrics = refitted_pipeline.metrics_.copy()
+
+        if self.verbose:
+            print(f"✓ Refitted clustering completed ({refitted_pipeline.n_clusters_} clusters)")
+
+        # Calculate improvement
+        improvements = {}
+        for metric in ['silhouette', 'calinski_harabasz', 'davies_bouldin']:
+            if metric in original_metrics and metric in refitted_metrics:
+                orig = original_metrics[metric]
+                new = refitted_metrics[metric]
+
+                # For Davies-Bouldin, lower is better
+                if metric == 'davies_bouldin':
+                    improvement = (orig - new) / orig if orig != 0 else 0
+                else:  # Higher is better
+                    improvement = (new - orig) / orig if orig != 0 else 0
+
+                improvements[metric] = improvement
+
+        # Weighted score (silhouette 50%, others 25% each)
+        weighted_improvement = (
+            improvements.get('silhouette', 0) * 0.5 +
+            improvements.get('calinski_harabasz', 0) * 0.25 +
+            improvements.get('davies_bouldin', 0) * 0.25
+        )
+        metrics_improved = weighted_improvement > 0
+
+        # Print comparison if requested
+        if compare_metrics and self.verbose:
+            print("\n" + "=" * 80)
+            print("METRICS COMPARISON")
+            print("=" * 80)
+            print(f"{'Metric':<25} {'Original':<15} {'Refitted':<15} {'Change':<15}")
+            print("-" * 80)
+
+            for metric in ['silhouette', 'calinski_harabasz', 'davies_bouldin']:
+                if metric in original_metrics and metric in refitted_metrics:
+                    orig = original_metrics[metric]
+                    new = refitted_metrics[metric]
+                    change = improvements[metric]
+
+                    change_str = f"{change:+.1%}"
+                    if metric == 'davies_bouldin':
+                        arrow = "↓" if change > 0 else "↑"  # Lower is better
+                    else:
+                        arrow = "↑" if change > 0 else "↓"  # Higher is better
+
+                    metric_name = metric.replace('_', ' ').title()
+                    print(f"{metric_name:<25} {orig:<15.4f} {new:<15.4f} {change_str} {arrow}")
+
+            print("-" * 80)
+            print(f"Overall improvement: {weighted_improvement:+.1%}")
+
+            if metrics_improved:
+                print("\n✓ Metrics IMPROVED with top features!")
+            else:
+                print("\n✗ Metrics did NOT improve with top features.")
+
+        # Step 4: Update pipeline if requested and metrics improved
+        if update_pipeline:
+            if metrics_improved:
+                if self.verbose:
+                    print("\nUpdating pipeline with refitted results...")
+
+                # Update pipeline attributes
+                self.selected_features_ = top_features
+                self.labels_ = refitted_pipeline.labels_
+                self.cluster_profiles_ = refitted_pipeline.cluster_profiles_
+                self.cluster_names_ = refitted_pipeline.cluster_names_
+                self.metrics_ = refitted_metrics
+                self.data_reduced_ = refitted_pipeline.data_reduced_
+                self._clusterer = refitted_pipeline._clusterer
+
+                if self.verbose:
+                    print("✓ Pipeline updated with top features!")
+            else:
+                if self.verbose:
+                    print("\n⚠ Metrics did not improve - pipeline NOT updated.")
+                    print("   Use update_pipeline=False to just compare without updating.")
+
+        # Return comparison results
+        return {
+            'top_features': top_features,
+            'n_features': n_features,
+            'importance_method': importance_method,
+            'original_metrics': original_metrics,
+            'refitted_metrics': refitted_metrics,
+            'metrics_improved': metrics_improved,
+            'improvement_summary': improvements,
+            'weighted_improvement': weighted_improvement,
+            'refitted_labels': refitted_pipeline.labels_,
+            'refitted_profiles': refitted_pipeline.cluster_profiles_,
+            'pipeline_updated': update_pipeline and metrics_improved
+        }
+
     def print_cluster_summary(self) -> None:
         """
         Print a comprehensive summary of all clusters with names and profiles.
