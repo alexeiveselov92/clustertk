@@ -346,7 +346,7 @@ class ClusterAnalysisPipeline:
         )
 
         if self.verbose:
-            print("\nStep 1/6: Preprocessing data...")
+            print("\n🔧 Preprocessing data...")
 
         # Store original data
         self.data_ = X.copy()
@@ -515,7 +515,7 @@ class ClusterAnalysisPipeline:
         from clustertk.feature_selection import CorrelationFilter, SmartCorrelationFilter, VarianceFilter
 
         if self.verbose:
-            print("\nStep 2/6: Selecting features...")
+            print("\n🎯 Selecting features...")
 
         initial_features = len(self.data_scaled_.columns)
         data_working = self.data_scaled_.copy()
@@ -584,7 +584,7 @@ class ClusterAnalysisPipeline:
         from clustertk.dimensionality import PCAReducer
 
         if self.verbose:
-            print("\nStep 3/6: Reducing dimensions with PCA...")
+            print("\n📐 Reducing dimensions with PCA...")
 
         initial_dims = len(self.selected_features_)
 
@@ -635,14 +635,14 @@ class ClusterAnalysisPipeline:
         # Skip for DBSCAN and HDBSCAN
         if isinstance(self.clustering_algorithm, str) and self.clustering_algorithm in ['dbscan', 'hdbscan']:
             if self.verbose:
-                print("\nStep 4/6: Finding optimal number of clusters...")
+                print("\n🔍 Finding optimal number of clusters...")
                 algo_name = self.clustering_algorithm.upper()
                 print(f"  Skipping for {algo_name} (density-based clustering)")
                 print("  ✓ Optimal cluster finding completed")
             return self
 
         if self.verbose:
-            print("\nStep 4/6: Finding optimal number of clusters...")
+            print("\n🔍 Finding optimal number of clusters...")
             print(f"  Testing k in range {self.n_clusters_range}...")
 
         # Select clusterer class based on algorithm
@@ -712,7 +712,7 @@ class ClusterAnalysisPipeline:
         from clustertk.evaluation import compute_clustering_metrics
 
         if self.verbose:
-            print("\nStep 5/6: Performing clustering...")
+            print("\n🔬 Performing clustering...")
 
         # Determine algorithm
         algo = algorithm or self.clustering_algorithm
@@ -830,7 +830,7 @@ class ClusterAnalysisPipeline:
         from clustertk.interpretation import ClusterProfiler
 
         if self.verbose:
-            print("\nStep 6/6: Creating cluster profiles...")
+            print("\n📊 Creating cluster profiles...")
 
         # Create profiler
         self._profiler = ClusterProfiler(normalize_per_feature=True)
@@ -2085,6 +2085,8 @@ class ClusterAnalysisPipeline:
             '.badge-info { background-color: #d1ecf1; color: #0c5460; }',
             '.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }',
             '@media (max-width: 768px) { .two-column { grid-template-columns: 1fr; } }',
+            '.importance-col { background-color: #fff9e6; border-left: 2px solid #ffc107; border-right: 2px solid #ffc107; font-weight: 600; }',
+            '.importance-header { background-color: #ffa726 !important; color: white; }',
             '</style>',
             '</head>',
             '<body>',
@@ -2197,6 +2199,7 @@ class ClusterAnalysisPipeline:
         n_features = len(self.cluster_profiles_.columns)
         html_parts.append(f'<h2>📋 Complete Cluster Profiles</h2>')
         html_parts.append(f'<p><em>{n_features} features × {len(self.cluster_profiles_)} clusters (sorted by importance)</em></p>')
+        html_parts.append('<p><strong>Note:</strong> Values are scaled/normalized for clustering. Importance shows discriminating power (max deviation across clusters).</p>')
 
         # Calculate feature importance for sorting
         feature_importance = {}
@@ -2233,7 +2236,7 @@ class ClusterAnalysisPipeline:
             html_parts.append('<table class="compact">')
 
             # Header: Feature column + Importance column + cluster columns
-            header_row = '<tr><th>Feature</th><th>Importance</th>'
+            header_row = '<tr><th>Feature</th><th class="importance-header">Importance</th>'
             for cluster_id in sorted(self.cluster_profiles_.index):
                 cluster_name = self.cluster_names_.get(cluster_id, str(cluster_id)) if self.cluster_names_ else str(cluster_id)
                 header_row += f'<th>{cluster_name}</th>'
@@ -2243,7 +2246,7 @@ class ClusterAnalysisPipeline:
             # Rows: one per feature (sorted by importance)
             for feature in sorted_features:
                 importance = feature_importance.get(feature, 0)
-                row = f'<tr><td><strong>{feature}</strong></td><td>{importance:.3f}</td>'
+                row = f'<tr><td><strong>{feature}</strong></td><td class="importance-col">{importance:.3f}</td>'
                 for cluster_id in sorted(self.cluster_profiles_.index):
                     value = self.cluster_profiles_.loc[cluster_id, feature]
                     row += f'<td>{value:.3f}</td>'
@@ -2265,10 +2268,10 @@ class ClusterAnalysisPipeline:
             html_parts.append(header_row)
 
             # Importance row
-            importance_row = '<tr style="background-color: #f0f0f0;"><td><strong>Importance</strong></td>'
+            importance_row = '<tr><td><strong>Importance</strong></td>'
             for feature in sorted_features:
                 importance = feature_importance.get(feature, 0)
-                importance_row += f'<td><strong>{importance:.3f}</strong></td>'
+                importance_row += f'<td class="importance-col">{importance:.3f}</td>'
             importance_row += '</tr>'
             html_parts.append(importance_row)
 
@@ -2382,6 +2385,15 @@ class ClusterAnalysisPipeline:
         html_parts.append('<h2>Pipeline Configuration</h2>')
         html_parts.append('<div class="config">')
 
+        # Determine cluster configuration display
+        if self.n_clusters is not None:
+            if isinstance(self.n_clusters, list):
+                cluster_config = f"Tested: {self.n_clusters}, Selected: {self.n_clusters_}"
+            else:
+                cluster_config = f"Fixed: {self.n_clusters_}"
+        else:
+            cluster_config = f"Auto-selected from range {self.n_clusters_range}: {self.n_clusters_}"
+
         config_items = [
             ('Missing Value Strategy', self.handle_missing),
             ('Outlier Handling', self.handle_outliers),
@@ -2389,7 +2401,7 @@ class ClusterAnalysisPipeline:
             ('Correlation Threshold', self.correlation_threshold),
             ('Variance Threshold', self.variance_threshold),
             ('PCA Variance', self.pca_variance),
-            ('Cluster Range', self.n_clusters_range),
+            ('Number of Clusters', cluster_config),
             ('Random State', self.random_state),
         ]
 
