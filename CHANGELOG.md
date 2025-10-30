@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2025-10-30
+
+### Improved
+- **Feature Contribution True Vectorization**
+  - Replaced pandas groupby with pure NumPy bincount vectorization
+  - Performance: 0.0165s → 0.0134s (1.23x faster on 80k samples)
+  - Benefits:
+    - True vectorization without hidden loops
+    - No pandas DataFrame creation overhead
+    - Pure NumPy C-level operations
+  - All 21 tests pass with 77% coverage
+
 ## [0.10.1] - 2025-10-30
 
 ### Fixed
