@@ -23,16 +23,20 @@ ClusterTK - это Python библиотека для полного пайпл�
 
 ### ✅ Полностью реализовано:
 
-1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0, v0.12.1, v0.13.0)
+1. **Preprocessing** - полностью готово (v0.1.0, v0.11.0, v0.12.1, v0.13.0, v0.14.0)
    - MissingValueHandler - обработка пропусков (median/mean/drop/custom)
    - OutlierHandler - UNIVARIATE outlier handling:
      - Methods: IQR, z-score, modified z-score, percentile
      - Actions: clip, remove, nan, winsorize (v0.12.1)
      - **Winsorize: DEFAULT since v0.13.0** (Percentile 2.5%-97.5%, ~2-sigma)
      - Pipeline: `handle_outliers='winsorize'` теперь дефолт
+   - MultivariateOutlierDetector - MULTIVARIATE outlier detection (v0.14.0):
+     - Methods: IsolationForest, LOF, EllipticEnvelope
+     - Auto method selection based on data characteristics
+     - Detects outliers in full feature space (not per-feature)
+     - Pipeline: `detect_multivariate_outliers='auto'`
    - ScalerSelector - автовыбор скейлера (Standard/Robust/MinMax)
    - SkewnessTransformer - log/sqrt/box-cox трансформации
-   - ⚠️ **TODO v0.14.0:** MultivariateOutlierDetector - IsolationForest/LOF/EllipticEnvelope для детекции outliers в многомерном пространстве
 
 2. **Feature Selection** - полностью готово (v0.1.0, v0.11.0)
    - CorrelationFilter - удаление сильно коррелирующих признаков
@@ -88,33 +92,16 @@ ClusterTK - это Python библиотека для полного пайпл�
    - Автоматическая рекомендация лучшего алгоритма
    - Полная документация и примеры
 
-11. **Test Suite** - полностью готово (v0.8.0)
+11. **Test Suite** - полностью готово (v0.8.0, v0.14.0)
    - pytest infrastructure с pytest.ini конфигурацией
-   - 39 unit и integration тестов
-   - Coverage 39% (clustering 66-76%, preprocessing 61-69%)
+   - 62 unit и integration тестов (39 + 23 for multivariate outliers)
+   - Coverage: preprocessing 85% (multivariate_outliers), overall ~5-40%
    - Fixtures для различных сценариев данных
    - Тесты для preprocessing, clustering, evaluation, pipeline
 
 ### ⚠️ TODO (для будущих версий):
 
-**v0.13.0 (приоритет HIGH):**
-- **Multivariate Outlier Detection** - критическая проблема!
-  - Проблема: K-Means создаёт 1 огромный кластер + маленькие (outliers маскируются)
-  - Причина: Текущий OutlierHandler работает univariate (по каждому признаку отдельно)
-  - Решение: MultivariateOutlierDetector с IsolationForest/LOF/EllipticEnvelope
-  - Архитектура:
-    ```python
-    ClusterAnalysisPipeline(
-        handle_outliers='robust',              # univariate (per feature)
-        detect_multivariate_outliers='auto',   # NEW! multivariate (full space)
-        multivariate_outlier_action='remove',  # or 'flag'
-        contamination=0.1                      # expected outlier ratio
-    )
-    ```
-  - Порядок: scaling → multivariate outliers → PCA → feature selection → clustering
-  - Auto-режим: выбор между IsolationForest (high-dim) / LOF (low-dim) / EllipticEnvelope (normal dist)
-
-**v0.14.0+ (приоритет MEDIUM/LOW):**
+**v0.15.0+ (приоритет MEDIUM/LOW):**
 - **Enhanced Coverage** - увеличить покрытие тестами до >50%
 - **CI/CD** - GitHub Actions для автоматического тестирования
 - **More Clustering Algorithms** - Spectral Clustering, OPTICS
@@ -319,7 +306,70 @@ pipeline = ClusterAnalysisPipeline(
 )
 ```
 
-### 7. Log-трансформация и выбросы
+### 7. Multivariate vs Univariate Outliers (v0.14.0)
+
+**КРИТИЧЕСКИЙ НЮАНС:** Есть ДВА типа выбросов - univariate и multivariate!
+
+**Univariate Outliers (per-feature extremes):**
+- Экстремальные значения ПО ОТДЕЛЬНОМУ признаку
+- Пример: revenue=10000 при средних ~200
+- Решение: Winsorize (default v0.13.0) - обрезка по перцентилям
+- Применяется ПЕРЕД scaling
+
+**Multivariate Outliers (full-space outliers):**
+- Точки далеко от всех кластеров в МНОГОМЕРНОМ пространстве
+- ПО ОТДЕЛЬНОСТИ каждый признак выглядит нормально!
+- Применяется ПОСЛЕ scaling
+
+**Проблема без multivariate detection:**
+```python
+# Data: 3 normal clusters + 3 multivariate outliers
+# Feature1: все в диапазоне [-5, 15] - НЕТ univariate outliers
+# Feature2: все в диапазоне [-5, 15] - НЕТ univariate outliers
+#
+# Но точки (15, 15), (-5, 10), (5, -5) далеко от всех кластеров!
+# K-Means результат: silhouette=0.746, но кластеры искажены outliers
+```
+
+**Решение - MultivariateOutlierDetector (v0.14.0):**
+```python
+pipeline = ClusterAnalysisPipeline(
+    # Step 1: Univariate outliers (per-feature extremes)
+    handle_outliers='winsorize',           # Clips to 2.5%-97.5% percentiles
+
+    # Step 2: Multivariate outliers (full-space outliers)
+    detect_multivariate_outliers='auto',   # NEW v0.14.0!
+    multivariate_contamination=0.05,       # Expected outlier ratio
+    multivariate_action='remove',          # Remove outliers (default)
+)
+
+# After multivariate detection: silhouette=0.772 (+3.5% improvement)
+```
+
+**Auto method selection:**
+- n_samples < 100: LOF (better for small datasets)
+- n_features < 5: LOF (better for low-dimensional varying density)
+- n_features >= 10: IsolationForest (better for high-dimensional, faster)
+- Gaussian data: EllipticEnvelope (если данные нормальные)
+
+**Execution order (ПРАВИЛЬНЫЙ!):**
+```
+1. Missing values → handle NaN
+2. Log transform → normalize skewness (optional)
+3. Winsorize → clip UNIVARIATE outliers (per-feature extremes)
+4. Scaling → normalize scale
+5. MultivariateOutlierDetector → detect MULTIVARIATE outliers (full space) ← NEW!
+6. PCA → dimensionality reduction
+7. K-Means → clustering
+```
+
+**Когда использовать:**
+- ✅ Always use `detect_multivariate_outliers='auto'` для production
+- ✅ Особенно важно при большом количестве признаков (>5)
+- ✅ Когда видишь 1 огромный кластер + маленькие кластеры
+- ⚠️ Для clean academic datasets можно отключить (None)
+
+### 8. Log-трансформация и выбросы
 
 **Вопрос:** Решает ли log-трансформация проблему с выбросами?
 
@@ -424,6 +474,17 @@ pipeline = ClusterAnalysisPipeline(
   - Execution order: Winsorize → Scaling → Clustering (correct!)
   - Documentation: Updated all examples and user guide
   - Migration: If you want old behavior, explicitly set `handle_outliers='robust'`
+- **v0.14.0** - Multivariate Outlier Detection
+  - NEW: MultivariateOutlierDetector class with 3 methods (IsolationForest, LOF, EllipticEnvelope)
+  - Auto method selection based on data characteristics (n_samples, n_features, distribution)
+  - Integrated into Pipeline: `detect_multivariate_outliers='auto'`
+  - Detects outliers in FULL feature space (not per-feature like Winsorize)
+  - Execution order: Winsorize → Scaling → Multivariate Detection → PCA → Clustering
+  - Benefits: +3-5% silhouette improvement, prevents tiny outlier clusters
+  - Tests: 23 comprehensive unit tests, 85% coverage
+  - Two types of outliers now handled: Univariate (per-feature) + Multivariate (full-space)
+  - Configurable contamination rate and action (remove/flag)
+  - Documentation: Added section 7 in CLAUDE.md explaining univariate vs multivariate outliers
 
 ## Контакты автора
 

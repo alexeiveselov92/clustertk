@@ -41,7 +41,7 @@ class ClusterAnalysisPipeline:
         Options: 'median', 'mean', 'drop', or a custom function.
 
     handle_outliers : str or None, default='winsorize'
-        Strategy for handling outliers before scaling.
+        Strategy for handling UNIVARIATE outliers (per-feature extremes) before scaling.
         Options:
         - 'winsorize': Clip to percentile bounds (RECOMMENDED, default since v0.13.0)
           Clips outliers to 2.5%-97.5% percentiles before scaling.
@@ -50,7 +50,28 @@ class ClusterAnalysisPipeline:
           WARNING: Outliers remain far away after scaling, may create tiny clusters!
         - 'clip': Clip outliers to IQR bounds before scaling
         - 'remove': Remove rows with outliers (data loss)
-        - None: No outlier handling
+        - None: No univariate outlier handling
+
+    detect_multivariate_outliers : str or None, default=None
+        Strategy for detecting MULTIVARIATE outliers (outliers in full feature space).
+        Multivariate outliers are points far from others when considering ALL features
+        together, even if they look normal per-feature. Applied AFTER scaling.
+        Options:
+        - 'auto': Automatically select best method (IsolationForest/LOF/EllipticEnvelope)
+        - 'isolation_forest': IsolationForest (best for high-dimensional data)
+        - 'lof': LocalOutlierFactor (best for low-dimensional varying density)
+        - 'elliptic_envelope': Robust covariance (best for Gaussian data)
+        - None: No multivariate outlier detection (default)
+
+    multivariate_contamination : float, default=0.05
+        Expected proportion of multivariate outliers (0.0 to 0.5).
+        Only used if detect_multivariate_outliers is not None.
+
+    multivariate_action : str, default='remove'
+        Action to take on detected multivariate outliers:
+        - 'remove': Remove outlier rows (recommended)
+        - 'flag': Add '_is_outlier' column without removing
+        Only used if detect_multivariate_outliers is not None.
 
     scaling : str, default='robust'
         Scaling method to use.
@@ -161,6 +182,9 @@ class ClusterAnalysisPipeline:
         # Preprocessing parameters
         handle_missing: Union[str, Callable] = 'median',
         handle_outliers: Optional[str] = 'winsorize',
+        detect_multivariate_outliers: Optional[str] = None,
+        multivariate_contamination: float = 0.05,
+        multivariate_action: Literal['remove', 'flag'] = 'remove',
         scaling: str = 'robust',
         log_transform_skewed: bool = False,
         skewness_threshold: float = 2.0,
@@ -187,6 +211,9 @@ class ClusterAnalysisPipeline:
         # Store parameters
         self.handle_missing = handle_missing
         self.handle_outliers = handle_outliers
+        self.detect_multivariate_outliers = detect_multivariate_outliers
+        self.multivariate_contamination = multivariate_contamination
+        self.multivariate_action = multivariate_action
         self.scaling = scaling
         self.log_transform_skewed = log_transform_skewed
         self.skewness_threshold = skewness_threshold
@@ -313,6 +340,7 @@ class ClusterAnalysisPipeline:
         from clustertk.preprocessing import (
             MissingValueHandler,
             OutlierHandler,
+            MultivariateOutlierDetector,
             ScalerSelector,
             SkewnessTransformer
         )
@@ -439,6 +467,38 @@ class ClusterAnalysisPipeline:
 
         if self.verbose:
             print(f"    ✓ Data scaled using {self._scaler.selected_scaler_type_} scaler")
+
+        # Step 1.5: Detect and handle multivariate outliers (if enabled)
+        if self.detect_multivariate_outliers is not None:
+            if self.verbose:
+                method_name = self.detect_multivariate_outliers
+                if method_name == 'auto':
+                    method_name = 'auto-selected method'
+                print(f"  Detecting multivariate outliers ({method_name}, contamination={self.multivariate_contamination})...")
+
+            self._multivariate_outlier_detector = MultivariateOutlierDetector(
+                method=self.detect_multivariate_outliers,
+                contamination=self.multivariate_contamination,
+                action=self.multivariate_action,
+                random_state=self.random_state
+            )
+
+            self.data_scaled_ = self._multivariate_outlier_detector.fit_transform(self.data_scaled_)
+
+            if self.verbose:
+                n_outliers = self._multivariate_outlier_detector.n_outliers_
+                outlier_ratio = self._multivariate_outlier_detector.outlier_ratio_
+                method_used = self._multivariate_outlier_detector.method_used_
+
+                if self.multivariate_action == 'remove':
+                    print(f"    ✓ Detected and removed {n_outliers} multivariate outliers ({outlier_ratio:.1%})")
+                    print(f"    Method used: {method_used}")
+                    print(f"    Rows after removal: {len(self.data_scaled_)}")
+                else:
+                    print(f"    ✓ Detected {n_outliers} multivariate outliers ({outlier_ratio:.1%}), flagged in data")
+                    print(f"    Method used: {method_used}")
+
+        if self.verbose:
             print(f"  Final preprocessed shape: {self.data_scaled_.shape}")
             print("  ✓ Preprocessing completed")
 
@@ -1911,13 +1971,48 @@ class ClusterAnalysisPipeline:
         if self.verbose:
             print(f"  ✓ Report generated successfully")
 
+    def _add_algorithm_specific_metrics(self, html_parts: list) -> None:
+        """Add algorithm-specific metrics to HTML report."""
+        # Check for DBSCAN/HDBSCAN noise points
+        if 'n_noise' in self.metrics_ and self.metrics_['n_noise'] > 0:
+            html_parts.append('<div class="algo-metrics">')
+            html_parts.append('<h3>🔍 Density-Based Algorithm Metrics</h3>')
+
+            noise_count = self.metrics_['n_noise']
+            noise_ratio = self.metrics_['noise_ratio']
+            html_parts.append(f'<p><strong>Noise Points:</strong> {noise_count} samples ({noise_ratio:.1%} of total)</p>')
+            html_parts.append('<p><em>Noise points are samples that don\'t belong to any cluster (marked as -1). '
+                            'This is normal for DBSCAN/HDBSCAN algorithms.</em></p>')
+
+            html_parts.append('</div>')
+
+        # Check for HDBSCAN probabilities
+        if hasattr(self.model_, 'probabilities_') and self.model_.probabilities_ is not None:
+            avg_prob = float(np.mean(self.model_.probabilities_[self.model_.probabilities_ > 0]))
+            weak_members = np.sum(self.model_.probabilities_ < 0.5)
+
+            html_parts.append('<div class="algo-metrics">')
+            html_parts.append('<h3>🎲 HDBSCAN Membership Probabilities</h3>')
+            html_parts.append(f'<p><strong>Average membership probability:</strong> {avg_prob:.3f}</p>')
+            html_parts.append(f'<p><strong>Weak members (prob < 0.5):</strong> {weak_members} samples</p>')
+            html_parts.append('<p><em>Higher probabilities indicate more confident cluster assignments.</em></p>')
+            html_parts.append('</div>')
+
+        # Check for GMM convergence
+        if hasattr(self.model_, 'converged_') and hasattr(self.model_, 'n_iter_'):
+            html_parts.append('<div class="algo-metrics">')
+            html_parts.append('<h3>🔄 GMM Convergence</h3>')
+            html_parts.append(f'<p><strong>Converged:</strong> {"Yes" if self.model_.converged_ else "No"}</p>')
+            html_parts.append(f'<p><strong>Iterations:</strong> {self.model_.n_iter_}</p>')
+            html_parts.append('</div>')
+
     def _build_html_report(self, include_plots: bool, plot_format: str) -> str:
-        """Build HTML report content."""
+        """Build HTML report content with enhanced features."""
         import base64
         from io import BytesIO
         from datetime import datetime
 
-        # HTML header and CSS
+        # HTML header and CSS (enhanced styling)
         html_parts = [
             '<!DOCTYPE html>',
             '<html lang="en">',
@@ -1926,24 +2021,43 @@ class ClusterAnalysisPipeline:
             '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
             '<title>ClusterTK Analysis Report</title>',
             '<style>',
-            'body { font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }',
+            'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 20px; background-color: #f5f7fa; }',
             'h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }',
-            'h2 { color: #34495e; margin-top: 30px; border-bottom: 2px solid #95a5a6; padding-bottom: 5px; }',
-            'h3 { color: #7f8c8d; }',
-            '.container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }',
-            '.summary { background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0; }',
+            'h2 { color: #34495e; margin-top: 40px; border-bottom: 2px solid #95a5a6; padding-bottom: 5px; }',
+            'h3 { color: #7f8c8d; margin-top: 25px; }',
+            'h4 { color: #95a5a6; margin-top: 15px; margin-bottom: 10px; }',
+            '.container { max-width: 1400px; margin: 0 auto; background-color: white; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 8px; }',
+            '.summary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 8px; margin: 20px 0; }',
             '.metric { display: inline-block; margin: 10px 20px 10px 0; }',
-            '.metric-label { font-weight: bold; color: #7f8c8d; }',
-            '.metric-value { font-size: 1.2em; color: #2c3e50; }',
-            'table { border-collapse: collapse; width: 100%; margin: 20px 0; }',
-            'th { background-color: #3498db; color: white; padding: 12px; text-align: left; }',
-            'td { padding: 10px; border-bottom: 1px solid #ddd; }',
-            'tr:hover { background-color: #f5f5f5; }',
+            '.metric-label { font-weight: 500; opacity: 0.9; }',
+            '.metric-value { font-size: 1.3em; font-weight: bold; margin-left: 5px; }',
+            'table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 0.95em; }',
+            'table.compact { font-size: 0.85em; }',
+            'th { background-color: #3498db; color: white; padding: 12px 8px; text-align: left; font-weight: 600; }',
+            'td { padding: 10px 8px; border-bottom: 1px solid #e1e8ed; }',
+            'tr:hover { background-color: #f8f9fa; }',
+            '.cluster-card { background-color: #f8f9fa; border-left: 4px solid #3498db; padding: 20px; margin: 20px 0; border-radius: 4px; }',
+            '.cluster-card h4 { margin-top: 0; color: #2c3e50; }',
+            '.feature-list { list-style: none; padding: 0; margin: 10px 0; }',
+            '.feature-list li { padding: 8px 0; border-bottom: 1px solid #e1e8ed; display: flex; justify-content: space-between; }',
+            '.feature-list li:last-child { border-bottom: none; }',
+            '.feature-high { color: #27ae60; font-weight: 500; }',
+            '.feature-low { color: #e74c3c; font-weight: 500; }',
+            '.feature-name { flex: 1; }',
+            '.feature-value { font-weight: 600; margin-left: 10px; }',
+            '.insight-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 4px; }',
+            '.algo-metrics { background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 15px 0; border-radius: 4px; }',
             '.plot-container { margin: 30px 0; text-align: center; }',
-            '.plot-container img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px; }',
-            '.config { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #3498db; margin: 20px 0; }',
-            '.config-item { margin: 5px 0; }',
-            '.timestamp { color: #95a5a6; font-size: 0.9em; }',
+            '.plot-container img { max-width: 100%; height: auto; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }',
+            '.config { background-color: #f8f9fa; padding: 20px; border-left: 4px solid #6c757d; margin: 20px 0; border-radius: 4px; }',
+            '.config-item { margin: 8px 0; }',
+            '.timestamp { color: #6c757d; font-size: 0.9em; }',
+            '.badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.85em; font-weight: 600; margin: 0 5px; }',
+            '.badge-success { background-color: #d4edda; color: #155724; }',
+            '.badge-warning { background-color: #fff3cd; color: #856404; }',
+            '.badge-info { background-color: #d1ecf1; color: #0c5460; }',
+            '.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }',
+            '@media (max-width: 768px) { .two-column { grid-template-columns: 1fr; } }',
             '</style>',
             '</head>',
             '<body>',
@@ -1951,31 +2065,41 @@ class ClusterAnalysisPipeline:
         ]
 
         # Title
-        html_parts.append('<h1>ClusterTK Analysis Report</h1>')
+        html_parts.append('<h1>📊 ClusterTK Analysis Report</h1>')
         html_parts.append(f'<p class="timestamp">Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>')
 
-        # Summary section
-        html_parts.append('<h2>Clustering Summary</h2>')
+        # Summary section (enhanced)
+        html_parts.append('<h2>🎯 Clustering Summary</h2>')
         html_parts.append('<div class="summary">')
 
         html_parts.append(f'<div class="metric"><span class="metric-label">Algorithm:</span> <span class="metric-value">{self.clustering_algorithm}</span></div>')
-        html_parts.append(f'<div class="metric"><span class="metric-label">Number of Clusters:</span> <span class="metric-value">{self.n_clusters_}</span></div>')
-        html_parts.append(f'<div class="metric"><span class="metric-label">Total Samples:</span> <span class="metric-value">{len(self.labels_)}</span></div>')
+        html_parts.append(f'<div class="metric"><span class="metric-label">Clusters:</span> <span class="metric-value">{self.n_clusters_}</span></div>')
+        html_parts.append(f'<div class="metric"><span class="metric-label">Samples:</span> <span class="metric-value">{len(self.labels_)}</span></div>')
 
         if self.metrics_:
             if 'silhouette' in self.metrics_:
-                html_parts.append(f'<div class="metric"><span class="metric-label">Silhouette Score:</span> <span class="metric-value">{self.metrics_["silhouette"]:.3f}</span></div>')
+                sil_score = self.metrics_["silhouette"]
+                if not np.isnan(sil_score):
+                    quality = "Excellent" if sil_score > 0.7 else "Good" if sil_score > 0.5 else "Fair" if sil_score > 0.25 else "Weak"
+                    html_parts.append(f'<div class="metric"><span class="metric-label">Silhouette:</span> <span class="metric-value">{sil_score:.3f}</span> <span class="badge badge-info">{quality}</span></div>')
+            if 'cluster_balance' in self.metrics_:
+                balance = self.metrics_['cluster_balance']
+                if not np.isnan(balance):
+                    balance_quality = "Balanced" if balance > 0.8 else "Moderate" if balance > 0.6 else "Imbalanced"
+                    html_parts.append(f'<div class="metric"><span class="metric-label">Balance:</span> <span class="metric-value">{balance:.3f}</span> <span class="badge badge-success">{balance_quality}</span></div>')
             if 'calinski_harabasz' in self.metrics_:
-                html_parts.append(f'<div class="metric"><span class="metric-label">Calinski-Harabasz:</span> <span class="metric-value">{self.metrics_["calinski_harabasz"]:.1f}</span></div>')
+                ch_score = self.metrics_["calinski_harabasz"]
+                if not np.isnan(ch_score):
+                    html_parts.append(f'<div class="metric"><span class="metric-label">Calinski-Harabasz:</span> <span class="metric-value">{ch_score:.1f}</span></div>')
             if 'davies_bouldin' in self.metrics_:
-                html_parts.append(f'<div class="metric"><span class="metric-label">Davies-Bouldin:</span> <span class="metric-value">{self.metrics_["davies_bouldin"]:.3f}</span></div>')
-            # Add noise statistics if present (v0.12.0+)
-            if 'n_noise' in self.metrics_:
-                noise_count = self.metrics_['n_noise']
-                noise_ratio = self.metrics_['noise_ratio']
-                html_parts.append(f'<div class="metric"><span class="metric-label">Noise Points:</span> <span class="metric-value">{noise_count} ({noise_ratio:.2%})</span></div>')
+                db_score = self.metrics_["davies_bouldin"]
+                if not np.isnan(db_score):
+                    html_parts.append(f'<div class="metric"><span class="metric-label">Davies-Bouldin:</span> <span class="metric-value">{db_score:.3f}</span></div>')
 
         html_parts.append('</div>')
+
+        # Algorithm-specific metrics (NEW!)
+        self._add_algorithm_specific_metrics(html_parts)
 
         # Cluster sizes
         html_parts.append('<h3>Cluster Sizes</h3>')
@@ -1999,40 +2123,124 @@ class ClusterAnalysisPipeline:
 
         html_parts.append('</table>')
 
-        # Cluster profiles
-        html_parts.append('<h2>Cluster Profiles</h2>')
-        html_parts.append('<table>')
+        # Cluster insights with top features (NEW!)
+        html_parts.append('<h2>💡 Cluster Insights</h2>')
+        html_parts.append('<p>Key distinguishing features for each cluster (showing most different from overall average):</p>')
 
-        # Table header
-        header_row = '<tr><th>Cluster</th>'
-        for feature in self.cluster_profiles_.columns:
-            header_row += f'<th>{feature}</th>'
-        header_row += '</tr>'
-        html_parts.append(header_row)
+        # Get top features for each cluster
+        if hasattr(self, '_profiler') and self._profiler is not None:
+            top_features = self._profiler.get_top_features(n=5)
 
-        # Table rows
-        for cluster_id in sorted(self.cluster_profiles_.index):
-            row = f'<tr><td><strong>{cluster_id}</strong></td>'
+            for cluster_id in sorted(self.cluster_profiles_.index):
+                cluster_name = self.cluster_names_.get(cluster_id, f'Cluster {cluster_id}') if self.cluster_names_ else f'Cluster {cluster_id}'
+
+                html_parts.append('<div class="cluster-card">')
+                html_parts.append(f'<h4>🎯 {cluster_name}</h4>')
+
+                if cluster_id in top_features:
+                    features = top_features[cluster_id]
+
+                    # High features
+                    html_parts.append('<strong class="feature-high">⬆ Highest Features:</strong>')
+                    html_parts.append('<ul class="feature-list">')
+                    for feat_name, deviation in features['high'][:3]:  # Top 3
+                        profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
+                        html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
+                                        f'<span class="feature-value">{profile_value:.3f}</span> '
+                                        f'<span class="badge badge-success">+{deviation:.3f}</span></li>')
+                    html_parts.append('</ul>')
+
+                    # Low features
+                    html_parts.append('<strong class="feature-low">⬇ Lowest Features:</strong>')
+                    html_parts.append('<ul class="feature-list">')
+                    for feat_name, deviation in features['low'][:3]:  # Top 3
+                        profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
+                        html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
+                                        f'<span class="feature-value">{profile_value:.3f}</span> '
+                                        f'<span class="badge badge-warning">{deviation:.3f}</span></li>')
+                    html_parts.append('</ul>')
+
+                html_parts.append('</div>')
+
+        # Full cluster profiles (condensed table)
+        n_features = len(self.cluster_profiles_.columns)
+        html_parts.append(f'<h2>📋 Complete Cluster Profiles</h2>')
+        html_parts.append(f'<p><em>{n_features} features × {len(self.cluster_profiles_)} clusters</em></p>')
+
+        # Transpose table if many features (better for readability)
+        if n_features > 10:
+            html_parts.append('<p><strong>Note:</strong> Table transposed for readability (features as rows)</p>')
+            html_parts.append('<div style="overflow-x: auto;">')
+            html_parts.append('<table class="compact">')
+
+            # Header: Feature column + cluster columns
+            header_row = '<tr><th>Feature</th>'
+            for cluster_id in sorted(self.cluster_profiles_.index):
+                cluster_name = self.cluster_names_.get(cluster_id, str(cluster_id)) if self.cluster_names_ else str(cluster_id)
+                header_row += f'<th>{cluster_name}</th>'
+            header_row += '</tr>'
+            html_parts.append(header_row)
+
+            # Rows: one per feature
             for feature in self.cluster_profiles_.columns:
-                value = self.cluster_profiles_.loc[cluster_id, feature]
-                row += f'<td>{value:.3f}</td>'
-            row += '</tr>'
-            html_parts.append(row)
+                row = f'<tr><td><strong>{feature}</strong></td>'
+                for cluster_id in sorted(self.cluster_profiles_.index):
+                    value = self.cluster_profiles_.loc[cluster_id, feature]
+                    row += f'<td>{value:.3f}</td>'
+                row += '</tr>'
+                html_parts.append(row)
 
-        html_parts.append('</table>')
+            html_parts.append('</table>')
+            html_parts.append('</div>')
+        else:
+            # Normal table (clusters as rows)
+            html_parts.append('<table>')
+
+            # Table header
+            header_row = '<tr><th>Cluster</th>'
+            for feature in self.cluster_profiles_.columns:
+                header_row += f'<th>{feature}</th>'
+            header_row += '</tr>'
+            html_parts.append(header_row)
+
+            # Table rows
+            for cluster_id in sorted(self.cluster_profiles_.index):
+                cluster_name = self.cluster_names_.get(cluster_id, str(cluster_id)) if self.cluster_names_ else str(cluster_id)
+                row = f'<tr><td><strong>{cluster_name}</strong></td>'
+                for feature in self.cluster_profiles_.columns:
+                    value = self.cluster_profiles_.loc[cluster_id, feature]
+                    row += f'<td>{value:.3f}</td>'
+                row += '</tr>'
+                html_parts.append(row)
+
+            html_parts.append('</table>')
 
         # Add plots if requested
         if include_plots:
             try:
                 from clustertk.visualization import check_viz_available
                 if check_viz_available():
-                    html_parts.append('<h2>Visualizations</h2>')
+                    html_parts.append('<h2>📊 Visualizations</h2>')
+
+                    # Get top features for radar chart
+                    top_features_radar = None
+                    if hasattr(self, '_profiler') and self._profiler is not None:
+                        try:
+                            top_feats = self._profiler.get_top_features(n=8)  # Top 8 for radar
+                            # Collect all unique top features across clusters
+                            all_top_features = set()
+                            for cluster_features in top_feats.values():
+                                all_top_features.update([f[0] for f in cluster_features['high'][:4]])
+                                all_top_features.update([f[0] for f in cluster_features['low'][:4]])
+                            top_features_radar = list(all_top_features)[:10]  # Max 10 features
+                        except:
+                            top_features_radar = None
 
                     # Generate and embed plots
                     plots_to_generate = [
-                        ('plot_clusters_2d', {}, 'Cluster Visualization (2D)'),
-                        ('plot_cluster_heatmap', {}, 'Cluster Profiles Heatmap'),
+                        ('plot_clusters_2d', {}, '2D Cluster Visualization'),
                         ('plot_cluster_sizes', {}, 'Cluster Size Distribution'),
+                        ('plot_cluster_heatmap', {'top_n_features': 15}, 'Cluster Profiles Heatmap (Top 15 Features)') if n_features > 15 else ('plot_cluster_heatmap', {}, 'Cluster Profiles Heatmap'),
                     ]
 
                     for plot_method, kwargs, title in plots_to_generate:
@@ -2041,7 +2249,7 @@ class ClusterAnalysisPipeline:
 
                             # Convert plot to base64
                             buffer = BytesIO()
-                            fig.savefig(buffer, format=plot_format, bbox_inches='tight', dpi=100)
+                            fig.savefig(buffer, format=plot_format, bbox_inches='tight', dpi=120)
                             buffer.seek(0)
                             img_base64 = base64.b64encode(buffer.read()).decode()
                             buffer.close()
@@ -2055,6 +2263,39 @@ class ClusterAnalysisPipeline:
                         except Exception as e:
                             if self.verbose:
                                 print(f"    Warning: Could not generate {plot_method}: {e}")
+
+                    # Add radar chart with top features only (custom plot)
+                    if top_features_radar and len(top_features_radar) > 0:
+                        try:
+                            from clustertk.visualization import plot_cluster_radar
+                            # Create filtered profiles with only top features
+                            profiles_filtered = self.cluster_profiles_[top_features_radar]
+                            # Use normalized if available
+                            if hasattr(self, 'cluster_profiles_normalized_') and self.cluster_profiles_normalized_ is not None:
+                                profiles_filtered_norm = self.cluster_profiles_normalized_[top_features_radar]
+                                fig = plot_cluster_radar(profiles=profiles_filtered_norm, normalize=False,
+                                                        title=f'Key Features Radar ({len(top_features_radar)} features)')
+                            else:
+                                fig = plot_cluster_radar(profiles=profiles_filtered, normalize=True,
+                                                        title=f'Key Features Radar ({len(top_features_radar)} features)')
+
+                            # Convert plot to base64
+                            buffer = BytesIO()
+                            fig.savefig(buffer, format=plot_format, bbox_inches='tight', dpi=120)
+                            buffer.seek(0)
+                            img_base64 = base64.b64encode(buffer.read()).decode()
+                            buffer.close()
+
+                            # Embed in HTML
+                            html_parts.append('<div class="plot-container">')
+                            html_parts.append(f'<h3>Key Features Radar Chart</h3>')
+                            html_parts.append(f'<p><em>Showing {len(top_features_radar)} most distinguishing features across all clusters</em></p>')
+                            html_parts.append(f'<img src="data:image/{plot_format};base64,{img_base64}" alt="Key Features Radar">')
+                            html_parts.append('</div>')
+
+                        except Exception as e:
+                            if self.verbose:
+                                print(f"    Warning: Could not generate radar chart: {e}")
 
                 else:
                     html_parts.append('<p><em>Visualization dependencies not installed. Install with: pip install clustertk[viz]</em></p>')
