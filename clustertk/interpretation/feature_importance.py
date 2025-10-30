@@ -141,13 +141,33 @@ class FeatureImportanceAnalyzer:
 
         Measures how much shuffling each feature decreases clustering quality
         (measured by silhouette score).
+
+        For large datasets (>10k samples), uses sampling to avoid memory issues
+        with silhouette score computation.
         """
         from sklearn.base import BaseEstimator
 
+        # For large datasets, use sampling to avoid OOM with silhouette score
+        # Silhouette computes pairwise distances: O(n²) memory
+        max_samples_for_silhouette = 10000
+        use_sampling = len(X) > max_samples_for_silhouette
+
+        if use_sampling:
+            # Sample for silhouette computation
+            rng = np.random.RandomState(random_state)
+            n_samples = min(max_samples_for_silhouette, len(X))
+            sample_indices = rng.choice(len(X), size=n_samples, replace=False)
+
+            if self.verbose:
+                print(f"  Large dataset detected ({len(X):,} samples)")
+                print(f"  Using {n_samples:,} samples for silhouette computation to avoid OOM")
+
         # Create a dummy estimator that just returns the labels
         class ClusteringEstimator(BaseEstimator):
-            def __init__(self, labels):
+            def __init__(self, labels, use_sampling=False, sample_indices=None):
                 self.labels_ = labels
+                self.use_sampling = use_sampling
+                self.sample_indices = sample_indices
 
             def fit(self, X, y=None):
                 return self
@@ -159,9 +179,25 @@ class FeatureImportanceAnalyzer:
                 # Use silhouette score as the metric
                 if len(np.unique(self.labels_)) < 2:
                     return 0.0
-                return silhouette_score(X, self.labels_)
 
-        estimator = ClusteringEstimator(labels)
+                # For large datasets, compute silhouette on sample
+                if self.use_sampling:
+                    X_sample = X.iloc[self.sample_indices] if hasattr(X, 'iloc') else X[self.sample_indices]
+                    labels_sample = self.labels_[self.sample_indices]
+
+                    # Check if sample has at least 2 clusters
+                    if len(np.unique(labels_sample)) < 2:
+                        return 0.0
+
+                    return silhouette_score(X_sample, labels_sample)
+                else:
+                    return silhouette_score(X, self.labels_)
+
+        estimator = ClusteringEstimator(
+            labels,
+            use_sampling=use_sampling,
+            sample_indices=sample_indices if use_sampling else None
+        )
         estimator.fit(X)
 
         # Compute permutation importance
@@ -200,43 +236,50 @@ class FeatureImportanceAnalyzer:
 
         Measures how much each feature contributes to separating clusters
         using variance ratio (between-cluster variance / within-cluster variance).
+
+        Optimized version using vectorized operations.
         """
         features = []
         contributions = []
 
+        # Filter out noise points once
+        mask = labels != -1
+        labels_filtered = labels[mask]
+        unique_labels = np.unique(labels_filtered)
+
+        if len(unique_labels) < 2:
+            # Not enough clusters for contribution analysis
+            return pd.DataFrame({
+                'feature': X.columns,
+                'contribution': [0.0] * len(X.columns)
+            })
+
         for col in X.columns:
-            feature_data = X[col].values
+            feature_data = X[col].values[mask]
 
-            # Calculate between-cluster variance
-            cluster_means = []
-            cluster_sizes = []
-            for label in np.unique(labels):
-                if label == -1:  # Skip noise points
-                    continue
-                cluster_data = feature_data[labels == label]
-                cluster_means.append(np.mean(cluster_data))
-                cluster_sizes.append(len(cluster_data))
+            # Vectorized computation using groupby
+            df_temp = pd.DataFrame({
+                'value': feature_data,
+                'label': labels_filtered
+            })
 
-            if len(cluster_means) < 2:
-                contributions.append(0.0)
-                features.append(col)
-                continue
+            # Compute cluster statistics in one pass
+            cluster_stats = df_temp.groupby('label')['value'].agg(['mean', 'count', 'var'])
+            cluster_means = cluster_stats['mean'].values
+            cluster_sizes = cluster_stats['count'].values
+            cluster_vars = cluster_stats['var'].values
 
-            overall_mean = np.mean(feature_data[labels != -1])
+            # Overall mean
+            overall_mean = feature_data.mean()
+
+            # Between-cluster variance (vectorized)
             between_var = np.sum(
-                [size * (mean - overall_mean)**2
-                 for size, mean in zip(cluster_sizes, cluster_means)]
-            ) / sum(cluster_sizes)
+                cluster_sizes * (cluster_means - overall_mean)**2
+            ) / cluster_sizes.sum()
 
-            # Calculate within-cluster variance
-            within_var = 0.0
-            for label in np.unique(labels):
-                if label == -1:
-                    continue
-                cluster_data = feature_data[labels == label]
-                within_var += np.sum((cluster_data - np.mean(cluster_data))**2)
-
-            within_var /= sum(cluster_sizes)
+            # Within-cluster variance (vectorized)
+            # sum(size * var) / total_size is equivalent to pooled variance
+            within_var = np.sum(cluster_sizes * cluster_vars) / cluster_sizes.sum()
 
             # Variance ratio (higher = better separation)
             if within_var > 0:
