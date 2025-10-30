@@ -1,9 +1,9 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.10.0 🚀
+## Текущий статус: v0.10.1 🚀
 
-**Latest Release:** v0.10.0 (Ready to publish!)
-**Previous:** v0.9.0 - https://pypi.org/project/clustertk/0.9.0/
+**Latest Release:** v0.10.1 - https://pypi.org/project/clustertk/0.10.1/
+**Previous:** v0.10.0 - Major stability analysis optimization
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
 ## ✅ Что завершено
@@ -193,6 +193,33 @@
      - Title: "v0.10.0 - Major Performance Optimization for Large Datasets"
      - Copy release notes from commit message or PyPI page
      - Attach: dist/clustertk-0.10.0-py3-none-any.whl, dist/clustertk-0.10.0.tar.gz
+
+---
+
+## ✅ v0.10.1 - Feature Importance Memory Fix (Completed!)
+
+### Critical Fix ✅
+   - [x] **Permutation Importance OOM fix**
+     - [x] Identified problem: silhouette_score O(n²) pairwise distances
+     - [x] 80k samples = 51+ GB memory requirement → OOM
+     - [x] Implemented automatic sampling to 10k samples
+     - [x] Result: 80k samples works in ~20s instead of OOM
+   - [x] **Feature Contribution optimization**
+     - [x] Replaced nested loops with vectorized groupby
+     - [x] 10x speedup: 0.3s → 0.03s for 80k samples
+     - [x] Memory-efficient single-pass computation
+
+### Testing & Validation ✅
+   - [x] Tested on 80k samples (works without OOM!)
+   - [x] All 21 unit tests pass (76% coverage)
+   - [x] Backward compatible API
+
+### Release ✅
+   - [x] Version bump to 0.10.1 (setup.py, pyproject.toml)
+   - [x] CHANGELOG.md updated
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.10.1/
+   - [x] Git commit and tag v0.10.1 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.10.1
 
 ---
 
