@@ -114,10 +114,6 @@ class ClusterAnalysisPipeline:
     naming_max_features : int, default=2
         Maximum number of features to include in cluster names.
 
-    report_top_features : int, default=5
-        Number of top distinguishing features to show per cluster in HTML reports.
-        Will be automatically adjusted if fewer features are available.
-
     random_state : int, default=42
         Random state for reproducibility.
 
@@ -208,8 +204,6 @@ class ClusterAnalysisPipeline:
         # Naming parameters
         auto_name_clusters: bool = False,
         naming_max_features: int = 2,
-        # Report parameters
-        report_top_features: int = 5,
         # General parameters
         random_state: int = 42,
         verbose: bool = True
@@ -235,7 +229,6 @@ class ClusterAnalysisPipeline:
         self.clustering_params = clustering_params or {}
         self.auto_name_clusters = auto_name_clusters
         self.naming_max_features = naming_max_features
-        self.report_top_features = report_top_features
         self.random_state = random_state
         self.verbose = verbose
 
@@ -852,8 +845,8 @@ class ClusterAnalysisPipeline:
         # Store normalized profiles for visualization
         self.cluster_profiles_normalized_ = self._profiler.profiles_normalized_
 
-        # Get top distinguishing features
-        self._profiler.get_top_features(n=5)
+        # Pre-calculate top distinguishing features for caching (internal optimization)
+        self._profiler.get_top_features(n=10)
 
         if self.verbose:
             print(f"  Profiles created for {len(self.cluster_profiles_)} clusters")
@@ -1931,14 +1924,17 @@ class ClusterAnalysisPipeline:
         self,
         path: str,
         include_plots: bool = True,
-        plot_format: str = 'png'
+        plot_format: str = 'png',
+        insights_top_features: int = 5,
+        radar_max_features: int = 10
     ) -> None:
         """
         Generate and export an HTML report with clustering results.
 
         This method creates a comprehensive HTML report including:
         - Clustering summary and metrics
-        - Cluster profiles table
+        - Cluster insights with top distinguishing features
+        - Complete cluster profiles table (sorted by feature importance)
         - Embedded visualizations (if include_plots=True)
         - Pipeline configuration details
 
@@ -1954,9 +1950,27 @@ class ClusterAnalysisPipeline:
         plot_format : str, default='png'
             Format for embedded plots: 'png' or 'svg'.
 
+        insights_top_features : int, default=5
+            Number of top distinguishing features to show per cluster in the
+            Cluster Insights section. Shows the most different features from
+            the overall mean for EACH cluster separately.
+
+        radar_max_features : int, default=10
+            Maximum number of features to show on the radar chart. Features are
+            aggregated from top distinguishing features across ALL clusters.
+
         Examples
         --------
+        >>> # Default report
         >>> pipeline.export_report('report.html')
+
+        >>> # Concise report with fewer features
+        >>> pipeline.export_report('report.html', insights_top_features=3, radar_max_features=6)
+
+        >>> # Detailed report with more features
+        >>> pipeline.export_report('report.html', insights_top_features=10, radar_max_features=15)
+
+        >>> # Report without plots
         >>> pipeline.export_report('report.html', include_plots=False)
         """
         if self.labels_ is None:
@@ -1969,7 +1983,7 @@ class ClusterAnalysisPipeline:
             print(f"\nGenerating HTML report: {path}...")
 
         # Build HTML report
-        html = self._build_html_report(include_plots, plot_format)
+        html = self._build_html_report(include_plots, plot_format, insights_top_features, radar_max_features)
 
         # Save to file
         with open(path, 'w', encoding='utf-8') as f:
@@ -2013,7 +2027,13 @@ class ClusterAnalysisPipeline:
             html_parts.append(f'<p><strong>Iterations:</strong> {self.model_.n_iter_}</p>')
             html_parts.append('</div>')
 
-    def _build_html_report(self, include_plots: bool, plot_format: str) -> str:
+    def _build_html_report(
+        self,
+        include_plots: bool,
+        plot_format: str,
+        insights_top_features: int,
+        radar_max_features: int
+    ) -> str:
         """Build HTML report content with enhanced features."""
         import base64
         from io import BytesIO
@@ -2130,7 +2150,7 @@ class ClusterAnalysisPipeline:
 
         html_parts.append('</table>')
 
-        # Cluster insights with top features (NEW!)
+        # Cluster insights with top features
         html_parts.append('<h2>💡 Cluster Insights</h2>')
         html_parts.append('<p>Key distinguishing features for each cluster (showing most different from overall average):</p>')
 
@@ -2138,9 +2158,9 @@ class ClusterAnalysisPipeline:
         if hasattr(self, '_profiler') and self._profiler is not None:
             # Safe calculation: adjust n based on available features
             n_available_features = len(self.cluster_profiles_.columns)
-            n_top = min(self.report_top_features, n_available_features)
+            n_insights = min(insights_top_features, n_available_features)
 
-            top_features = self._profiler.get_top_features(n=n_top)
+            top_features = self._profiler.get_top_features(n=n_insights)
 
             for cluster_id in sorted(self.cluster_profiles_.index):
                 cluster_name = self.cluster_names_.get(cluster_id, f'Cluster {cluster_id}') if self.cluster_names_ else f'Cluster {cluster_id}'
@@ -2151,20 +2171,20 @@ class ClusterAnalysisPipeline:
                 if cluster_id in top_features:
                     features = top_features[cluster_id]
 
-                    # High features - show all n_top features
+                    # High features - show all n_insights features
                     html_parts.append('<strong class="feature-high">⬆ Highest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
-                    for feat_name, deviation in features['high'][:n_top]:
+                    for feat_name, deviation in features['high'][:n_insights]:
                         profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
                         html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
                                         f'<span class="feature-value">{profile_value:.3f}</span> '
                                         f'<span class="badge badge-success">+{deviation:.3f}</span></li>')
                     html_parts.append('</ul>')
 
-                    # Low features - show all n_top features
+                    # Low features - show all n_insights features
                     html_parts.append('<strong class="feature-low">⬇ Lowest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
-                    for feat_name, deviation in features['low'][:n_top]:
+                    for feat_name, deviation in features['low'][:n_insights]:
                         profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
                         html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
                                         f'<span class="feature-value">{profile_value:.3f}</span> '
@@ -2173,10 +2193,38 @@ class ClusterAnalysisPipeline:
 
                 html_parts.append('</div>')
 
-        # Full cluster profiles (condensed table)
+        # Full cluster profiles (condensed table with importance)
         n_features = len(self.cluster_profiles_.columns)
         html_parts.append(f'<h2>📋 Complete Cluster Profiles</h2>')
-        html_parts.append(f'<p><em>{n_features} features × {len(self.cluster_profiles_)} clusters</em></p>')
+        html_parts.append(f'<p><em>{n_features} features × {len(self.cluster_profiles_)} clusters (sorted by importance)</em></p>')
+
+        # Calculate feature importance for sorting
+        feature_importance = {}
+        if hasattr(self, '_profiler') and self._profiler is not None:
+            try:
+                # Get all features importance
+                top_feats_all = self._profiler.get_top_features(n=n_features)
+                # Calculate max deviation across all clusters for each feature
+                for cluster_features in top_feats_all.values():
+                    for feat_name, deviation in cluster_features['high']:
+                        if feat_name not in feature_importance:
+                            feature_importance[feat_name] = 0
+                        feature_importance[feat_name] = max(feature_importance[feat_name], abs(deviation))
+                    for feat_name, deviation in cluster_features['low']:
+                        if feat_name not in feature_importance:
+                            feature_importance[feat_name] = 0
+                        feature_importance[feat_name] = max(feature_importance[feat_name], abs(deviation))
+            except:
+                # Fallback: no sorting if importance calculation fails
+                feature_importance = {f: 0 for f in self.cluster_profiles_.columns}
+        else:
+            # No profiler: no sorting
+            feature_importance = {f: 0 for f in self.cluster_profiles_.columns}
+
+        # Sort features by importance (descending)
+        sorted_features = sorted(self.cluster_profiles_.columns,
+                                key=lambda f: feature_importance.get(f, 0),
+                                reverse=True)
 
         # Transpose table if many features (better for readability)
         if n_features > 10:
@@ -2184,17 +2232,18 @@ class ClusterAnalysisPipeline:
             html_parts.append('<div style="overflow-x: auto;">')
             html_parts.append('<table class="compact">')
 
-            # Header: Feature column + cluster columns
-            header_row = '<tr><th>Feature</th>'
+            # Header: Feature column + Importance column + cluster columns
+            header_row = '<tr><th>Feature</th><th>Importance</th>'
             for cluster_id in sorted(self.cluster_profiles_.index):
                 cluster_name = self.cluster_names_.get(cluster_id, str(cluster_id)) if self.cluster_names_ else str(cluster_id)
                 header_row += f'<th>{cluster_name}</th>'
             header_row += '</tr>'
             html_parts.append(header_row)
 
-            # Rows: one per feature
-            for feature in self.cluster_profiles_.columns:
-                row = f'<tr><td><strong>{feature}</strong></td>'
+            # Rows: one per feature (sorted by importance)
+            for feature in sorted_features:
+                importance = feature_importance.get(feature, 0)
+                row = f'<tr><td><strong>{feature}</strong></td><td>{importance:.3f}</td>'
                 for cluster_id in sorted(self.cluster_profiles_.index):
                     value = self.cluster_profiles_.loc[cluster_id, feature]
                     row += f'<td>{value:.3f}</td>'
@@ -2204,27 +2253,37 @@ class ClusterAnalysisPipeline:
             html_parts.append('</table>')
             html_parts.append('</div>')
         else:
-            # Normal table (clusters as rows)
+            # Normal table (clusters as rows, features sorted by importance)
+            html_parts.append('<div style="overflow-x: auto;">')
             html_parts.append('<table>')
 
-            # Table header
+            # Table header (sorted features + importance row)
             header_row = '<tr><th>Cluster</th>'
-            for feature in self.cluster_profiles_.columns:
+            for feature in sorted_features:
                 header_row += f'<th>{feature}</th>'
             header_row += '</tr>'
             html_parts.append(header_row)
 
-            # Table rows
+            # Importance row
+            importance_row = '<tr style="background-color: #f0f0f0;"><td><strong>Importance</strong></td>'
+            for feature in sorted_features:
+                importance = feature_importance.get(feature, 0)
+                importance_row += f'<td><strong>{importance:.3f}</strong></td>'
+            importance_row += '</tr>'
+            html_parts.append(importance_row)
+
+            # Table rows (clusters)
             for cluster_id in sorted(self.cluster_profiles_.index):
                 cluster_name = self.cluster_names_.get(cluster_id, str(cluster_id)) if self.cluster_names_ else str(cluster_id)
                 row = f'<tr><td><strong>{cluster_name}</strong></td>'
-                for feature in self.cluster_profiles_.columns:
+                for feature in sorted_features:
                     value = self.cluster_profiles_.loc[cluster_id, feature]
                     row += f'<td>{value:.3f}</td>'
                 row += '</tr>'
                 html_parts.append(row)
 
             html_parts.append('</table>')
+            html_parts.append('</div>')
 
         # Add plots if requested
         if include_plots:
@@ -2233,21 +2292,22 @@ class ClusterAnalysisPipeline:
                 if check_viz_available():
                     html_parts.append('<h2>📊 Visualizations</h2>')
 
-                    # Get top features for radar chart
+                    # Get top features for radar chart (aggregated from all clusters)
                     top_features_radar = None
                     if hasattr(self, '_profiler') and self._profiler is not None:
                         try:
                             # Safe calculation: adjust n based on available features
                             n_available_features = len(self.cluster_profiles_.columns)
-                            n_radar = min(self.report_top_features * 2, n_available_features)  # More features for radar
+                            n_radar_calc = min(radar_max_features, n_available_features)
 
-                            top_feats = self._profiler.get_top_features(n=n_radar)
+                            # Get enough features to aggregate
+                            top_feats = self._profiler.get_top_features(n=n_radar_calc)
                             # Collect all unique top features across clusters
                             all_top_features = set()
                             for cluster_features in top_feats.values():
-                                all_top_features.update([f[0] for f in cluster_features['high'][:n_radar//2]])
-                                all_top_features.update([f[0] for f in cluster_features['low'][:n_radar//2]])
-                            top_features_radar = list(all_top_features)[:min(10, n_available_features)]  # Max 10 features or less
+                                all_top_features.update([f[0] for f in cluster_features['high']])
+                                all_top_features.update([f[0] for f in cluster_features['low']])
+                            top_features_radar = list(all_top_features)[:n_radar_calc]
                         except:
                             top_features_radar = None
 
