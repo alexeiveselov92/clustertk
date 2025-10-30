@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2025-10-30
+
+### Fixed
+- **SHAP values bug fix** - Fixed ValueError when SHAP returns multidimensional arrays
+  - Issue: `mean_shap` could be 2D in multiclass scenarios, causing pandas DataFrame error
+  - Fix: Added `flatten()` to ensure `mean_shap` is always 1D before DataFrame creation
+  - Error: "Per-column arrays must each be 1-dimensional"
+  - Now works correctly for all clustering scenarios (binary, multiclass)
+
 ## [0.11.0] - 2025-10-30
 
 ### Added

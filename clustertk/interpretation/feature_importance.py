@@ -346,9 +346,14 @@ class FeatureImportanceAnalyzer:
         # If multiclass, shap_values is a list (one array per class)
         # Take mean absolute SHAP value across all classes
         if isinstance(shap_values, list):
+            # Each element: (n_samples, n_features), aggregate across classes and samples
             mean_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
         else:
+            # Binary or regression: (n_samples, n_features), aggregate across samples
             mean_shap = np.abs(shap_values).mean(axis=0)
+
+        # Ensure mean_shap is 1D (flatten if needed)
+        mean_shap = np.asarray(mean_shap).flatten()
 
         # Create DataFrame
         shap_df = pd.DataFrame({
