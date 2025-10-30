@@ -139,14 +139,21 @@ def plot_clusters_2d(
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels[unique_labels >= 0])
 
-    # Create color palette
+    # Create color palette (ensure at least 1 color for edge case of only noise)
+    colors = sns.color_palette("husl", max(n_clusters, 1))
+
     if -1 in unique_labels:
-        # DBSCAN with noise
-        colors = sns.color_palette("husl", n_clusters)
-        color_map = {label: colors[i] if label >= 0 else 'gray'
-                     for i, label in enumerate(unique_labels)}
+        # DBSCAN/HDBSCAN with noise: assign colors only to real clusters
+        color_idx = 0
+        color_map = {}
+        for label in unique_labels:
+            if label == -1:
+                color_map[label] = 'gray'
+            else:
+                color_map[label] = colors[color_idx]
+                color_idx += 1
     else:
-        colors = sns.color_palette("husl", n_clusters)
+        # No noise: direct mapping
         color_map = {label: colors[i] for i, label in enumerate(unique_labels)}
 
     # Plot each cluster

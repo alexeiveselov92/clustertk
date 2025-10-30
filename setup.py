@@ -41,7 +41,7 @@ dev_requires = [
 
 setup(
     name='clustertk',
-    version='0.14.4',
+    version='0.14.5',
     author='Aleksey Veselov',
     author_email='alexei.veselov92@gmail.com',
     description='A comprehensive toolkit for cluster analysis with full pipeline support',
