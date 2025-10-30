@@ -11,8 +11,9 @@ ClusterTK - это Python библиотека для полного пайпл�
 ### 📦 Публикация:
 - ✅ GitHub: https://github.com/alexeiveselov92/clustertk
 - ✅ PyPI: https://pypi.org/project/clustertk/
-- **Latest Version:** v0.15.0 (2025-10-30)
+- **Latest Version:** v0.16.0 (2025-10-30)
 - **Recent Major Updates:**
+  - v0.16.0 - **MAJOR FEATURE**: Feature selection for clustering optimization (get_pca_feature_importance, refit_with_top_features)
   - v0.15.0 - **MAJOR FEATURE**: Flexible dimensionality reduction (PCA/UMAP/None) with smart auto-mode for each algorithm
   - v0.14.5 - Bugfix: Fixed IndexError in plot_clusters_2d() for HDBSCAN/DBSCAN with noise points
   - v0.14.4 - Bugfix: Fixed 'top_n_features' error in heatmap generation (use feature slicing instead)
@@ -43,10 +44,16 @@ ClusterTK - это Python библиотека для полного пайпл�
    - ScalerSelector - автовыбор скейлера (Standard/Robust/MinMax)
    - SkewnessTransformer - log/sqrt/box-cox трансформации
 
-2. **Feature Selection** - полностью готово (v0.1.0, v0.11.0)
+2. **Feature Selection** - полностью готово (v0.1.0, v0.11.0, v0.16.0)
    - CorrelationFilter - удаление сильно коррелирующих признаков
    - SmartCorrelationFilter - интеллектуальный выбор из коррелирующих пар (Hopkins statistic) (v0.11.0)
    - VarianceFilter - удаление low-variance признаков
+   - **NEW v0.16.0:** Итеративная feature selection для оптимизации кластеризации:
+     - `get_pca_feature_importance()` - показывает вклад исходных признаков в PCA компоненты
+     - `refit_with_top_features()` - перекластеризует на топ-N признаках, сравнивает метрики
+     - 3 метода важности: permutation, contribution, pca
+     - Автоматическое сравнение метрик (original vs refitted)
+     - Опциональное обновление pipeline если метрики улучшились
 
 3. **Dimensionality Reduction** - полностью готово (v0.1.0, v0.15.0)
    - PCAReducer - PCA с автоподбором компонент по variance threshold
@@ -527,17 +534,24 @@ pipeline = ClusterAnalysisPipeline(
   - Execution order: Winsorize → Scaling → Clustering (correct!)
   - Documentation: Updated all examples and user guide
   - Migration: If you want old behavior, explicitly set `handle_outliers='robust'`
-- **v0.14.0** - Multivariate Outlier Detection
-  - NEW: MultivariateOutlierDetector class with 3 methods (IsolationForest, LOF, EllipticEnvelope)
-  - Auto method selection based on data characteristics (n_samples, n_features, distribution)
-  - Integrated into Pipeline: `detect_multivariate_outliers='auto'`
-  - Detects outliers in FULL feature space (not per-feature like Winsorize)
-  - Execution order: Winsorize → Scaling → Multivariate Detection → PCA → Clustering
-  - Benefits: +3-5% silhouette improvement, prevents tiny outlier clusters
-  - Tests: 23 comprehensive unit tests, 85% coverage
-  - Two types of outliers now handled: Univariate (per-feature) + Multivariate (full-space)
-  - Configurable contamination rate and action (remove/flag)
-  - Documentation: Added section 7 in CLAUDE.md explaining univariate vs multivariate outliers
+- **v0.14.0-v0.14.5** - Multivariate Outliers + UX improvements + Bugfixes
+  - v0.14.0: MultivariateOutlierDetector (IsolationForest/LOF/EllipticEnvelope)
+  - v0.14.1-v0.14.3: UX improvements in reports
+  - v0.14.4: Fixed heatmap generation error with >15 features
+  - v0.14.5: Fixed HDBSCAN/DBSCAN visualization bug (IndexError with noise points)
+- **v0.15.0** - **MAJOR**: Flexible Dimensionality Reduction
+  - New dim_reduction parameter: 'auto', 'pca', 'umap', 'none'
+  - Auto-mode selects best method based on algorithm + n_features
+  - UMAP for clustering (n_components=10-20, NOT 2!)
+  - Fixes HDBSCAN on high-dimensional data (PCA destroyed density)
+- **v0.16.0** - **MAJOR**: Feature Selection for Clustering Optimization
+  - get_pca_feature_importance() - shows PCA loadings for original features
+  - refit_with_top_features() - iterative feature selection workflow
+  - 3 importance methods: permutation (best), contribution, pca
+  - Automatic metrics comparison (original vs refitted)
+  - Optional pipeline update if metrics improved
+  - Customizable outlier_percentiles parameter for winsorization
+  - Test results: +21% (PCA), +105% (permutation) improvement with feature selection!
 
 ## Контакты автора
 

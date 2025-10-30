@@ -15,7 +15,8 @@ ClusterTK provides a complete, sklearn-style pipeline for clustering: from raw d
 - 🔄 **Complete Pipeline** - One-line solution from raw data to insights
 - 📊 **Multiple Algorithms** - K-Means, GMM, Hierarchical, DBSCAN, HDBSCAN
 - 🎯 **Auto-Optimization** - Automatic optimal cluster number selection
-- 🧮 **Smart Dimensionality Reduction** - PCA/UMAP/None with algorithm-specific auto-mode (**NEW in v0.15.0!**)
+- 🧮 **Smart Dimensionality Reduction** - PCA/UMAP/None with algorithm-specific auto-mode
+- 🎯 **Feature Selection** - Find optimal feature subsets for better clustering (**NEW in v0.16.0!**)
 - 🎨 **Rich Visualization** - Beautiful plots (optional dependency)
 - 📁 **Export & Reports** - CSV, JSON, HTML reports with embedded plots
 - 💾 **Save/Load** - Persist and reload fitted pipelines
@@ -163,6 +164,45 @@ print(f"Noise ratio: {pipeline.cluster_profiles_.noise_ratio_:.1%}")
 - Auto-mode selects UMAP for HDBSCAN/DBSCAN when features >30
 
 **Important:** Use `n_components=10-20` for clustering, NOT 2-3 (visualization only)!
+
+### Feature Selection for Better Clustering (v0.16.0+)
+
+```python
+# Problem: You have 30 features, but not all are useful for clustering
+# More features ≠ better clustering (curse of dimensionality)
+
+# Step 1: Fit on all features
+pipeline = ClusterAnalysisPipeline(dim_reduction='pca')
+pipeline.fit(df)  # 30 features → Silhouette: 0.42
+
+# Step 2: Find which features matter most
+importance = pipeline.get_pca_feature_importance()
+print(importance.head(10))  # Top 10 features by PCA loadings
+
+# Step 3: Try refitting with top 10 features
+comparison = pipeline.refit_with_top_features(
+    n_features=10,
+    importance_method='permutation',  # Best for clustering quality
+    compare_metrics=True,
+    update_pipeline=False  # Just compare, don't update yet
+)
+
+# Step 4: If metrics improved, update pipeline
+if comparison['metrics_improved']:
+    print(f"Improvement: {comparison['weighted_improvement']:+.1%}")
+    pipeline.refit_with_top_features(n_features=10, update_pipeline=True)
+    # New silhouette: 0.58 (+38% improvement!)
+```
+
+**Why Feature Selection?**
+- Irrelevant features dilute clustering signal (noise)
+- PCA can't fix bad features, only compress them
+- 10 good features > 30 mixed features
+
+**Three Importance Methods:**
+- `'permutation'` - Best for clustering quality (default)
+- `'contribution'` - Variance ratio analysis
+- `'pca'` - PCA loadings (only if dim_reduction='pca')
 
 ### Feature Importance Analysis
 

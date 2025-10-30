@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2025-10-30
+
+### Added
+- **Feature Selection for Clustering Optimization** - Two new methods to find optimal feature subsets
+  - `get_pca_feature_importance()` - Shows which original features contribute most to PCA components
+    - Returns DataFrame with total PCA loadings and relative importance
+    - Helps interpret PCA-based clustering results
+    - Guides feature selection decisions
+  - `refit_with_top_features()` - Iterative feature selection workflow
+    - Refits clustering using top N most important features
+    - Compares metrics (original vs refitted) automatically
+    - Supports 3 importance methods: `permutation`, `contribution`, `pca`
+    - Can update pipeline if metrics improved (`update_pipeline=True`)
+    - Weighted scoring: Silhouette 50%, Calinski-Harabasz 25%, Davies-Bouldin 25%
+
+- **Customizable Outlier Winsorization** - Control percentile clipping bounds
+  - Added `outlier_percentiles` parameter to Pipeline (default: `(0.025, 0.975)`)
+  - Allows fine-tuning winsorization for different data distributions
+  - Examples:
+    - `(0.01, 0.99)` - Very mild (2% total clipping, extreme outliers only)
+    - `(0.025, 0.975)` - Balanced (5% total clipping, default, ~2σ)
+    - `(0.05, 0.95)` - Aggressive (10% total clipping, risk of information loss)
+  - Dynamic verbose output shows actual percentile range used
+
+### Why This Matters
+- **Curse of Dimensionality:** More features ≠ better clustering
+- **Feature Noise:** Irrelevant features dilute clustering signal
+- **Analyst Workflow:** "I have 30 features, which ones should I use?"
+- **Solution:** Iterative feature selection finds optimal subset
+
+### Example Workflow
+```python
+# 1. Fit on all features
+pipeline = ClusterAnalysisPipeline(dim_reduction='pca')
+pipeline.fit(df)  # 30 features
+
+# 2. Try refitting with top 10 features
+comparison = pipeline.refit_with_top_features(
+    n_features=10,
+    importance_method='permutation',  # Best for clustering quality
+    compare_metrics=True,
+    update_pipeline=False  # Just compare first
+)
+
+# 3. If metrics improved, update pipeline
+if comparison['metrics_improved']:
+    pipeline.refit_with_top_features(n_features=10, update_pipeline=True)
+```
+
+### Performance
+Test results (1000 samples, 20 features: 3 meaningful + 7 derived + 10 noise):
+- **PCA importance:** +21% improvement with top 5 features
+- **Permutation importance:** +105% improvement with top 8 features!
+- Correctly identified meaningful features over noise
+
+## [0.15.0] - 2025-10-30
+
+### Added
+- **Flexible Dimensionality Reduction** - Smart algorithm-specific selection
+  - New `dim_reduction` parameter with options: `'auto'`, `'pca'`, `'umap'`, `'none'`
+  - **Auto-mode** intelligently selects best method based on algorithm + n_features:
+    - K-Means/GMM + <50 features → `none` (works well in original space)
+    - K-Means/GMM + ≥50 features → `pca` (handles curse of dimensionality)
+    - HDBSCAN/DBSCAN + <30 features → `none` (preserves local density)
+    - HDBSCAN/DBSCAN + ≥30 features → `umap` (preserves local structure)
+  - **UMAP parameters** for clustering (NOT visualization!):
+    - `umap_n_components=10` (default, NOT 2!)
+    - `umap_n_neighbors=30`, `umap_min_dist=0.1`, `umap_metric='euclidean'`
+  - **Key insight:** UMAP CAN be used for clustering with proper settings
+
+### Why This Matters
+- **PCA problem for HDBSCAN:** PCA destroys local density → HDBSCAN finds only noise
+- **UMAP solution:** Preserves local structure → HDBSCAN works correctly
+- **CRITICAL:** UMAP for clustering needs `n_components=10-20`, NOT 2-3 (visualization only)
+
+### Changed
+- Renamed internal `_pca_reducer` → `_reducer` (supports PCA/UMAP/None)
+- Updated all PCA-specific visualizations to check for PCA attributes
+
+### Fixed
+- HDBSCAN now works correctly on high-dimensional data via UMAP
+- Visualization methods handle both PCA and UMAP reduction
+
+## [0.14.5] - 2025-10-30
+
+### Fixed
+- **HDBSCAN/DBSCAN visualization bug** - IndexError in `plot_clusters_2d()` with noise points
+  - Issue: `enumerate(unique_labels)` gave wrong indices when -1 (noise) present
+  - Example: labels=[-1,0,1,2] → enumerate gives i=0,1,2,3, but colors has only 3 items
+  - Fix: Separate `color_idx` counter that only increments for real clusters (not noise)
+  - Noise points now correctly colored as gray
+
+## [0.14.4] - 2025-10-30
+
+### Fixed
+- **Heatmap generation error** in `export_report()` with >15 features
+  - Issue: Tried to pass `top_n_features` parameter that doesn't exist in function signature
+  - Fix: Temporarily slice `cluster_profiles_` dataframe before calling method
+  - Reports now correctly generate heatmaps with top 15 features when total >15
+
+## [0.14.3] - 2025-10-30
+
+### Improved
+- **UX Enhancement:** More informative titles in HTML reports
+  - Heatmap title now includes "(Top N Features)" when features are limited
+  - Helps users understand what they're seeing in reports
+
 ## [0.12.0] - 2025-10-30
 
 ### Added
