@@ -136,6 +136,82 @@ from clustertk import ClusterAnalysisPipeline
 loaded = ClusterAnalysisPipeline.load_pipeline('my_pipeline.joblib')
 ```
 
+## Feature Selection (v0.16.0+)
+
+### Q: I have 30 features - should I use all of them for clustering?
+
+**Short answer:** Not necessarily! More features ≠ better clustering.
+
+**Problem:** Irrelevant features add noise and dilute clustering signal (curse of dimensionality).
+
+**Solution:** Use iterative feature selection:
+
+```python
+# 1. Fit on all features
+pipeline.fit(df)  # 30 features
+
+# 2. Try refitting with top 10 features
+comparison = pipeline.refit_with_top_features(
+    n_features=10,
+    importance_method='permutation'
+)
+
+# 3. If improved, update pipeline
+if comparison['metrics_improved']:
+    pipeline.refit_with_top_features(n_features=10, update_pipeline=True)
+```
+
+See [Feature Selection Guide](user_guide/interpretation.md#feature-selection-for-better-clustering-v0160) for details.
+
+### Q: Which importance method should I use for feature selection?
+
+**Quick answer:** Use `'permutation'` (default and recommended).
+
+**Three methods:**
+- **`'permutation'`** - Measures impact on clustering quality (silhouette). Best for finding features that improve clustering. ✅ **Recommended**
+- **`'contribution'`** - Variance ratio (fast statistical measure). Good for quick insights.
+- **`'pca'`** - PCA loadings (only if `dim_reduction='pca'`). Good for PCA interpretation.
+
+```python
+comparison = pipeline.refit_with_top_features(
+    n_features=10,
+    importance_method='permutation'  # Best choice
+)
+```
+
+### Q: How many features should I keep?
+
+**It depends on your data**, but here's a guideline:
+
+1. **Try multiple values**: Test [15, 10, 8, 5] and compare metrics
+2. **Don't over-reduce**: Keep at least 5-8 features to retain information
+3. **Look for improvement**: If metrics don't improve, keep all features
+
+```python
+# Try different feature counts
+for n in [15, 10, 8, 5]:
+    comparison = pipeline.refit_with_top_features(
+        n_features=n,
+        compare_metrics=False,
+        update_pipeline=False
+    )
+    print(f"Top {n}: Silhouette={comparison['refitted_metrics']['silhouette']:.3f}")
+
+# Use best performing count
+```
+
+**Real example:** Dataset with 20 features (3 meaningful + 7 derived + 10 noise):
+- All 20 features → Silhouette: 0.106
+- Top 8 features (permutation) → Silhouette: 0.223 (**+105% improvement!** 🚀)
+
+### Q: When should I NOT use feature selection?
+
+Skip feature selection if:
+- **Small feature count** (<10 features) - already manageable
+- **All features important** - domain knowledge says all features matter
+- **Metrics don't improve** - feature selection hurts quality
+- **After correlation filter** - SmartCorrelationFilter already removed redundant features
+
 ## Performance
 
 ### Q: How large datasets can ClusterTK handle?
