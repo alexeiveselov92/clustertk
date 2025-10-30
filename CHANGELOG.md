@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.1] - 2025-10-30
+
+### Fixed
+- **KeyError in export_report() after feature selection** - Fixed crash when generating reports after `refit_with_top_features(update_pipeline=True)`
+  - Problem: `export_report()` tried to access features from original clustering that no longer exist in reduced feature set
+  - Solution: Added safety checks in `_build_html_report()` to only access features present in current `cluster_profiles_`
+  - Updated `refit_with_top_features()` to properly update `_profiler` attribute when pipeline is updated
+  - Now you can safely call `export_report()` after using feature selection
+
 ## [0.16.0] - 2025-10-30
 
 ### Added

@@ -1735,6 +1735,7 @@ class ClusterAnalysisPipeline:
                 self.metrics_ = refitted_metrics
                 self.data_reduced_ = refitted_pipeline.data_reduced_
                 self._clusterer = refitted_pipeline._clusterer
+                self._profiler = refitted_pipeline._profiler  # Update profiler to match new features
 
                 if self.verbose:
                     print("✓ Pipeline updated with top features!")
@@ -2765,20 +2766,24 @@ class ClusterAnalysisPipeline:
                     html_parts.append('<strong class="feature-high">⬆ Highest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
                     for feat_name, deviation in features['high'][:n_insights]:
-                        profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
-                        html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
-                                        f'<span class="feature-value">{profile_value:.3f}</span> '
-                                        f'<span class="badge badge-success">+{deviation:.3f}</span></li>')
+                        # Only access features that exist in current cluster_profiles_
+                        if feat_name in self.cluster_profiles_.columns:
+                            profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
+                            html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
+                                            f'<span class="feature-value">{profile_value:.3f}</span> '
+                                            f'<span class="badge badge-success">+{deviation:.3f}</span></li>')
                     html_parts.append('</ul>')
 
                     # Low features - show all n_insights features
                     html_parts.append('<strong class="feature-low">⬇ Lowest Features:</strong>')
                     html_parts.append('<ul class="feature-list">')
                     for feat_name, deviation in features['low'][:n_insights]:
-                        profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
-                        html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
-                                        f'<span class="feature-value">{profile_value:.3f}</span> '
-                                        f'<span class="badge badge-warning">{deviation:.3f}</span></li>')
+                        # Only access features that exist in current cluster_profiles_
+                        if feat_name in self.cluster_profiles_.columns:
+                            profile_value = self.cluster_profiles_.loc[cluster_id, feat_name]
+                            html_parts.append(f'<li><span class="feature-name">{feat_name}</span> '
+                                            f'<span class="feature-value">{profile_value:.3f}</span> '
+                                            f'<span class="badge badge-warning">{deviation:.3f}</span></li>')
                     html_parts.append('</ul>')
 
                 html_parts.append('</div>')
