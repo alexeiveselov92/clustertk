@@ -2316,14 +2316,30 @@ class ClusterAnalysisPipeline:
 
                     # Generate and embed plots
                     plots_to_generate = [
-                        ('plot_clusters_2d', {}, '2D Cluster Visualization'),
-                        ('plot_cluster_sizes', {}, 'Cluster Size Distribution'),
-                        ('plot_cluster_heatmap', {'top_n_features': 15}, 'Cluster Profiles Heatmap (Top 15 Features)') if n_features > 15 else ('plot_cluster_heatmap', {}, 'Cluster Profiles Heatmap'),
+                        ('plot_clusters_2d', {}, '2D Cluster Visualization', None),
+                        ('plot_cluster_sizes', {}, 'Cluster Size Distribution', None),
+                        ('plot_cluster_heatmap', {}, f'Cluster Profiles Heatmap (Top 15 Features)', sorted_features[:15]) if n_features > 15 else ('plot_cluster_heatmap', {}, 'Cluster Profiles Heatmap', None),
                     ]
 
-                    for plot_method, kwargs, title in plots_to_generate:
+                    for plot_method, kwargs, title, feature_subset in plots_to_generate:
                         try:
-                            fig = getattr(self, plot_method)(**kwargs)
+                            # For heatmap with many features, temporarily slice profiles
+                            if feature_subset is not None and plot_method == 'plot_cluster_heatmap':
+                                original_profiles = self.cluster_profiles_
+                                original_profiles_norm = self.cluster_profiles_normalized_ if hasattr(self, 'cluster_profiles_normalized_') else None
+                                # Slice to top features
+                                self.cluster_profiles_ = self.cluster_profiles_[feature_subset]
+                                if original_profiles_norm is not None:
+                                    self.cluster_profiles_normalized_ = original_profiles_norm[feature_subset]
+
+                                fig = getattr(self, plot_method)(**kwargs)
+
+                                # Restore original profiles
+                                self.cluster_profiles_ = original_profiles
+                                if original_profiles_norm is not None:
+                                    self.cluster_profiles_normalized_ = original_profiles_norm
+                            else:
+                                fig = getattr(self, plot_method)(**kwargs)
 
                             # Convert plot to base64
                             buffer = BytesIO()
