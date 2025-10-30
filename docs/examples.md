@@ -123,12 +123,12 @@ pipeline.print_cluster_summary()
 
 ## Anomaly Detection
 
-Identify outliers in transaction data:
+Identify outliers in transaction data using DBSCAN or HDBSCAN:
 
 ```python
 from clustertk import ClusterAnalysisPipeline
 
-# Configure for anomaly detection
+# Configure for anomaly detection with DBSCAN
 pipeline = ClusterAnalysisPipeline(
     clustering_algorithm='dbscan',
     scaling='robust'
@@ -137,12 +137,44 @@ pipeline = ClusterAnalysisPipeline(
 # Fit on transaction features
 pipeline.fit(transactions, feature_columns=['amount', 'frequency', 'recency'])
 
+# Check noise statistics (v0.12.0+)
+print(f"Found {pipeline.n_clusters_} normal clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+
 # Extract anomalies (DBSCAN labels them as -1)
 anomalies = transactions[pipeline.labels_ == -1]
 normal = transactions[pipeline.labels_ != -1]
 
-print(f"Anomalies detected: {len(anomalies)} / {len(transactions)}")
+print(f"\nAnomalies detected: {len(anomalies)} / {len(transactions)}")
 anomalies.to_csv('anomalies.csv', index=False)
+```
+
+**Alternative: Using HDBSCAN with custom parameters**
+
+```python
+# HDBSCAN with custom min_cluster_size for anomaly detection (v0.12.0+)
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 20,   # Smaller clusters are noise
+        'min_samples': 5          # Lower threshold for dense areas
+    },
+    scaling='robust'
+)
+
+pipeline.fit(transactions, feature_columns=['amount', 'frequency', 'recency'])
+
+# HDBSCAN provides membership probabilities
+probs = pipeline.model_.probabilities_
+
+# Identify anomalies with different confidence levels
+high_confidence_anomalies = transactions[(pipeline.labels_ == -1) & (probs < 0.1)]
+low_confidence_anomalies = transactions[(pipeline.labels_ == -1) & (probs >= 0.1)]
+
+print(f"High confidence anomalies: {len(high_confidence_anomalies)}")
+print(f"Low confidence anomalies: {len(low_confidence_anomalies)}")
+print(f"Total noise: {pipeline.metrics_['n_noise']}")
 ```
 
 ## Market Basket Analysis
@@ -249,30 +281,50 @@ locations = pd.read_csv('locations.csv')
 
 pipeline = ClusterAnalysisPipeline(
     clustering_algorithm='dbscan',  # Good for geographic data
+    clustering_params={
+        'eps': 0.01,        # ~1.1 km at equator
+        'min_samples': 5    # At least 5 locations to form cluster
+    },
     scaling='standard'
 )
 
 pipeline.fit(locations, feature_columns=['latitude', 'longitude', 'population'])
 
+# Check results (v0.12.0+)
+print(f"Found {pipeline.n_clusters_} geographic clusters")
+print(f"Isolated locations (noise): {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+
 # Visualize on map (using folium or similar)
 import folium
 
-m = folium.Map(location=[locations['latitude'].mean(), 
-                         locations['longitude'].mean()], 
+m = folium.Map(location=[locations['latitude'].mean(),
+                         locations['longitude'].mean()],
                zoom_start=10)
 
 colors = ['red', 'blue', 'green', 'purple', 'orange']
 for idx, row in locations.iterrows():
     cluster = pipeline.labels_[idx]
-    if cluster != -1:  # Skip noise
+    if cluster != -1:  # Skip noise points
         folium.CircleMarker(
             location=[row['latitude'], row['longitude']],
             radius=5,
             color=colors[cluster % len(colors)],
-            fill=True
+            fill=True,
+            popup=f"Cluster {cluster}"
+        ).add_to(m)
+    else:
+        # Mark noise points differently
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=3,
+            color='gray',
+            fill=True,
+            popup="Isolated location (noise)"
         ).add_to(m)
 
 m.save('location_clusters.html')
+print(f"\nMap saved to location_clusters.html")
 ```
 
 ## Text Document Clustering

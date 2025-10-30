@@ -1116,6 +1116,13 @@ class ClusterAnalysisPipeline:
 
         cluster_sizes = pd.Series(self.labels_).value_counts().sort_index()
 
+        # Print noise statistics if present (v0.12.0+)
+        if hasattr(self._profiler, 'n_noise_') and self._profiler.n_noise_ > 0:
+            noise_count = self._profiler.n_noise_
+            noise_ratio = self._profiler.noise_ratio_
+            print(f"\n⚠ Noise points: {noise_count} ({noise_ratio:.2%})")
+            print("  (Outliers not assigned to any cluster)")
+
         for cluster_id in sorted(self.cluster_profiles_.index):
             # Cluster header
             size = cluster_sizes.get(cluster_id, 0)
@@ -1947,6 +1954,11 @@ class ClusterAnalysisPipeline:
                 html_parts.append(f'<div class="metric"><span class="metric-label">Calinski-Harabasz:</span> <span class="metric-value">{self.metrics_["calinski_harabasz"]:.1f}</span></div>')
             if 'davies_bouldin' in self.metrics_:
                 html_parts.append(f'<div class="metric"><span class="metric-label">Davies-Bouldin:</span> <span class="metric-value">{self.metrics_["davies_bouldin"]:.3f}</span></div>')
+            # Add noise statistics if present (v0.12.0+)
+            if 'n_noise' in self.metrics_:
+                noise_count = self.metrics_['n_noise']
+                noise_ratio = self.metrics_['noise_ratio']
+                html_parts.append(f'<div class="metric"><span class="metric-label">Noise Points:</span> <span class="metric-value">{noise_count} ({noise_ratio:.2%})</span></div>')
 
         html_parts.append('</div>')
 
@@ -1957,9 +1969,18 @@ class ClusterAnalysisPipeline:
         html_parts.append('<tr><th>Cluster</th><th>Name</th><th>Size</th><th>Percentage</th></tr>')
 
         for cluster_id, size in cluster_sizes.items():
+            # Skip noise points in main table (v0.12.0+)
+            if cluster_id == -1:
+                continue
             pct = size / len(self.labels_) * 100
             name = self.cluster_names_.get(cluster_id, '-') if self.cluster_names_ else '-'
             html_parts.append(f'<tr><td>{cluster_id}</td><td>{name}</td><td>{size}</td><td>{pct:.1f}%</td></tr>')
+
+        # Add noise row if present (v0.12.0+)
+        if -1 in cluster_sizes:
+            noise_size = cluster_sizes[-1]
+            noise_pct = noise_size / len(self.labels_) * 100
+            html_parts.append(f'<tr style="background-color: #fff3cd;"><td><strong>Noise</strong></td><td><em>Outliers</em></td><td>{noise_size}</td><td>{noise_pct:.1f}%</td></tr>')
 
         html_parts.append('</table>')
 

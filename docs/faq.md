@@ -36,6 +36,9 @@ pipeline = ClusterAnalysisPipeline(n_clusters=None, n_clusters_range=(2, 10))
 - **GMM**: Elliptical clusters, probabilistic assignments
 - **Hierarchical**: Explore cluster hierarchy
 - **DBSCAN**: Arbitrary shapes, outliers present
+- **HDBSCAN**: Varying density clusters, automatic detection
+
+See [Algorithm Comparison](user_guide/clustering.md#algorithm-comparison) for detailed comparison.
 
 ### Q: How do I handle missing values?
 
@@ -180,16 +183,132 @@ Try:
 
 ### Q: DBSCAN finds only one cluster or all noise
 
-DBSCAN parameters need tuning. ClusterTK auto-estimates them, but you may need custom values:
+DBSCAN parameters need tuning. ClusterTK auto-estimates them, but you may need custom values (v0.12.0+):
 
 ```python
-from clustertk.clustering import DBSCANClustering
-
-custom_dbscan = DBSCANClustering(eps=0.5, min_samples=5)
-pipeline = ClusterAnalysisPipeline(clustering_algorithm=custom_dbscan)
+# Use clustering_params to customize
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='dbscan',
+    clustering_params={
+        'eps': 0.5,           # Try different neighborhood radius
+        'min_samples': 5      # Try different minimum points
+    }
+)
 ```
 
+**Alternative: Try HDBSCAN**
+
+HDBSCAN is more robust to parameter choices:
+
+```python
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 50,  # Adjust based on expected cluster size
+        'min_samples': 10
+    }
+)
+```
+
+### Q: What are noise points and how do I check them? (v0.12.0+)
+
+DBSCAN and HDBSCAN label outliers as "noise points" (cluster -1). Check noise statistics:
+
+```python
+pipeline = ClusterAnalysisPipeline(clustering_algorithm='hdbscan')
+pipeline.fit(df, feature_columns=features)
+
+# Check noise statistics
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+
+# Extract noise points
+noise_mask = pipeline.labels_ == -1
+noise_points = df[noise_mask]
+```
+
+**Interpretation:**
+- **<5% noise**: Excellent, very few outliers
+- **5-10% noise**: Good, reasonable outlier detection
+- **10-20% noise**: Moderate, many outliers
+- **>20% noise**: High noise, consider adjusting parameters or using different algorithm
+
 ## Advanced
+
+### Q: How do I customize algorithm parameters? (v0.12.0+)
+
+Use the `clustering_params` parameter to pass custom parameters to any algorithm:
+
+```python
+# HDBSCAN with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 50,
+        'min_samples': 10,
+        'cluster_selection_method': 'eom',
+        'metric': 'manhattan'
+    }
+)
+
+# K-Means with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='kmeans',
+    n_clusters=5,
+    clustering_params={
+        'n_init': 20,
+        'max_iter': 500,
+        'algorithm': 'elkan'
+    }
+)
+
+# DBSCAN with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='dbscan',
+    clustering_params={
+        'eps': 0.5,
+        'min_samples': 5,
+        'metric': 'manhattan'
+    }
+)
+```
+
+**How it works:**
+- Parameters in `clustering_params` are passed directly to the underlying sklearn/hdbscan algorithm
+- User parameters override default values
+- Works with any algorithm: kmeans, gmm, hierarchical, dbscan, hdbscan
+
+See [Clustering Algorithms](user_guide/clustering.md#customizing-algorithm-parameters-v0120) for all available parameters.
+
+### Q: When should I use clustering_params?
+
+Use `clustering_params` when:
+
+1. **HDBSCAN min_cluster_size**: Control minimum cluster size for your use case
+   ```python
+   clustering_params={'min_cluster_size': 100}  # Require at least 100 samples per cluster
+   ```
+
+2. **DBSCAN eps/min_samples**: Fine-tune density thresholds
+   ```python
+   clustering_params={'eps': 0.3, 'min_samples': 10}
+   ```
+
+3. **K-Means stability**: Increase initializations for more stable results
+   ```python
+   clustering_params={'n_init': 50}  # More initializations
+   ```
+
+4. **Distance metrics**: Use non-Euclidean distances
+   ```python
+   clustering_params={'metric': 'manhattan'}  # L1 distance
+   ```
+
+5. **Performance tuning**: Adjust algorithm-specific optimizations
+   ```python
+   clustering_params={'algorithm': 'elkan'}  # Faster K-Means variant
+   ```
 
 ### Q: Can I use custom preprocessing?
 

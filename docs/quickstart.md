@@ -157,11 +157,45 @@ pipeline = ClusterAnalysisPipeline(
 
 pipeline.fit(df, feature_columns=numeric_columns)
 
+# Check noise statistics (v0.12.0+)
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+
 # Identify anomalies (cluster -1 in DBSCAN)
 anomalies = df[pipeline.labels_ == -1]
 normal = df[pipeline.labels_ != -1]
 
 print(f"Found {len(anomalies)} anomalies out of {len(df)} samples")
+```
+
+### Use Case 2b: Advanced Clustering with HDBSCAN (v0.8.0+)
+
+```python
+from clustertk import ClusterAnalysisPipeline
+
+# HDBSCAN with custom parameters (v0.12.0+)
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 50,    # Minimum cluster size
+        'min_samples': 10          # Core points threshold
+    },
+    handle_outliers='robust',
+    scaling='standard'
+)
+
+pipeline.fit(df, feature_columns=numeric_columns)
+
+# Check results
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+
+# HDBSCAN provides membership probabilities
+probs = pipeline.model_.probabilities_
+confident = probs > 0.7
+print(f"Confident assignments: {confident.sum()}")
 ```
 
 ### Use Case 3: Comparing Algorithms
@@ -224,10 +258,34 @@ pipeline = ClusterAnalysisPipeline(
 
 ```python
 pipeline = ClusterAnalysisPipeline(
-    clustering_algorithm='kmeans',    # 'kmeans', 'gmm', 'hierarchical', 'dbscan'
+    clustering_algorithm='kmeans',    # 'kmeans', 'gmm', 'hierarchical', 'dbscan', 'hdbscan'
     n_clusters=5,                     # Number of clusters (or None for auto)
     n_clusters_range=(2, 10),         # Range for optimal k search
     random_state=42                   # For reproducibility
+)
+```
+
+**Custom algorithm parameters (v0.12.0+):**
+
+```python
+# Pass custom parameters to any algorithm
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 50,
+        'min_samples': 10,
+        'cluster_selection_method': 'eom'
+    }
+)
+
+# Works with any algorithm
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='kmeans',
+    n_clusters=5,
+    clustering_params={
+        'n_init': 20,
+        'max_iter': 500
+    }
 )
 ```
 

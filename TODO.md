@@ -1,13 +1,14 @@
 # ClusterTK - TODO
 
-## Текущий статус: v0.11.0 🚀
+## Текущий статус: v0.12.0 🚀
 
-**Latest Release:** v0.11.0 - https://pypi.org/project/clustertk/0.11.0/
+**Latest Release:** v0.12.0 - https://pypi.org/project/clustertk/0.12.0/
 **Recent Releases:**
+- v0.12.0 (2025-10-30) - Algorithm Parameters & Noise Point Tracking
+- v0.11.1 (2025-10-30) - SHAP hotfix
 - v0.11.0 (2025-10-30) - Smart Feature Selection & Cluster Balance
 - v0.10.2 (2025-10-30) - True NumPy vectorization
 - v0.10.1 (2025-10-30) - Feature importance memory fix
-- v0.10.0 (2025-10-30) - Stability analysis optimization
 **GitHub:** https://github.com/alexeiveselov92/clustertk
 
 ## ✅ Что завершено
@@ -289,13 +290,85 @@
    - [x] Version bump to 0.11.0 (setup.py, pyproject.toml)
    - [x] CHANGELOG.md updated
    - [x] TODO.md updated
-   - [ ] Build and publish to PyPI: https://pypi.org/project/clustertk/0.11.0/
-   - [ ] Git commit and tag v0.11.0 pushed
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.11.0/
+   - [x] Git commit and tag v0.11.0 pushed
    - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.11.0
 
 ---
 
-## 🎯 Приоритеты для v0.12.0+
+## ✅ v0.11.1 - SHAP Multidimensional Array Fix (Completed!)
+
+### Bug Fix ✅
+   - [x] **SHAP ValueError fix**
+     - [x] Fixed "Per-column arrays must each be 1-dimensional" error
+     - [x] Added flatten() to ensure mean_shap is always 1D
+     - [x] Handles both list of arrays and single array from SHAP
+     - [x] All 21 unit tests pass (76% coverage)
+
+### Release ✅
+   - [x] Version bump to 0.11.1 (setup.py, pyproject.toml)
+   - [x] CHANGELOG.md updated
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.11.1/
+   - [x] Git commit and tag v0.11.1 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.11.1
+
+---
+
+## ✅ v0.12.0 - Algorithm Parameters & Noise Point Tracking (Completed!)
+
+### Algorithm Parameter Flexibility ✅
+   - [x] **clustering_params parameter** - pass custom parameters to any algorithm
+     - [x] Added Dict[str, Any] clustering_params to Pipeline.__init__()
+     - [x] Parameters override defaults in algorithm initialization
+     - [x] Works with all algorithms: kmeans, gmm, hierarchical, dbscan, hdbscan
+     - [x] Examples: min_cluster_size for HDBSCAN, eps/min_samples for DBSCAN, n_init for KMeans
+   - [x] **Pipeline integration**
+     - [x] Updated all algorithm initialization to merge user params with defaults
+     - [x] Backward compatible (clustering_params optional, defaults to {})
+
+### Noise Points Tracking ✅
+   - [x] **Noise point statistics** - track DBSCAN/HDBSCAN outliers
+     - [x] Added n_noise and noise_ratio to metrics_ dict
+     - [x] compute_clustering_metrics() filters noise before calculation
+     - [x] get_metrics_summary() shows noise statistics with quality assessment
+   - [x] **ClusterProfiler updates**
+     - [x] Filters noise points before computing profiles
+     - [x] Added n_noise_ and noise_ratio_ attributes
+     - [x] Updated docstrings and examples
+   - [x] **Pipeline updates**
+     - [x] print_cluster_summary() shows noise statistics
+     - [x] export_report() includes noise in summary and cluster sizes table
+     - [x] Noise row highlighted in HTML reports
+
+### Documentation ✅
+   - [x] **Updated docs/user_guide/clustering.md**
+     - [x] Added "Customizing Algorithm Parameters" section
+     - [x] Updated all algorithm sections with clustering_params examples
+     - [x] Added noise statistics examples for DBSCAN/HDBSCAN
+   - [x] **Updated docs/quickstart.md**
+     - [x] Added HDBSCAN example with clustering_params
+     - [x] Added noise point statistics examples
+   - [x] **Updated docs/examples.md**
+     - [x] Enhanced anomaly detection example with noise tracking
+     - [x] Added HDBSCAN alternative with custom parameters
+     - [x] Updated geographic clustering with noise visualization
+   - [x] **Updated docs/faq.md**
+     - [x] Added "How do I customize algorithm parameters?" section
+     - [x] Added "When should I use clustering_params?" section
+     - [x] Added "What are noise points?" section
+     - [x] Updated DBSCAN troubleshooting with clustering_params
+
+### Release ✅
+   - [x] Version bump to 0.12.0 (setup.py, pyproject.toml)
+   - [x] CHANGELOG.md updated
+   - [x] TODO.md updated
+   - [x] Build and publish to PyPI: https://pypi.org/project/clustertk/0.12.0/
+   - [x] Git commit and tag v0.12.0 pushed
+   - [ ] Create GitHub Release manually at: https://github.com/alexeiveselov92/clustertk/releases/new?tag=v0.12.0
+
+---
+
+## 🎯 Приоритеты для v0.13.0+
 
 ### MEDIUM PRIORITY
 

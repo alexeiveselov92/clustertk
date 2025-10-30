@@ -11,6 +11,54 @@ Available algorithms:
 - **DBSCAN**: Density-based, finds arbitrary shapes and noise
 - **HDBSCAN** (v0.8.0+): Advanced density-based, handles varying densities
 
+## Customizing Algorithm Parameters (v0.12.0+)
+
+All clustering algorithms can be customized using the `clustering_params` parameter. This allows you to pass any algorithm-specific parameters:
+
+```python
+from clustertk import ClusterAnalysisPipeline
+
+# K-Means with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='kmeans',
+    n_clusters=5,
+    clustering_params={
+        'n_init': 20,           # More initializations for stability
+        'max_iter': 500,        # More iterations if needed
+        'algorithm': 'elkan'    # Faster for well-defined clusters
+    },
+    random_state=42
+)
+
+# HDBSCAN with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 50,              # Minimum cluster size
+        'min_samples': 10,                    # Core points threshold
+        'cluster_selection_method': 'eom',    # Excess of mass
+        'metric': 'manhattan'                 # Distance metric
+    }
+)
+
+# DBSCAN with custom parameters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='dbscan',
+    clustering_params={
+        'eps': 0.5,           # Neighborhood radius
+        'min_samples': 5,     # Minimum points per cluster
+        'metric': 'euclidean' # Distance metric
+    }
+)
+
+pipeline.fit(df, feature_columns=features)
+```
+
+**How it works:**
+- Parameters in `clustering_params` are passed directly to the algorithm
+- User parameters override default values
+- See each algorithm's section for commonly customized parameters
+
 ## K-Means Clustering
 
 Best for: Spherical clusters, large datasets, when you know the number of clusters.
@@ -25,6 +73,16 @@ pipeline = ClusterAnalysisPipeline(
 )
 
 pipeline.fit(df, feature_columns=features)
+```
+
+**Customizable parameters:**
+```python
+clustering_params={
+    'n_init': 10,          # Number of initializations (default: 10)
+    'max_iter': 300,       # Maximum iterations (default: 300)
+    'tol': 1e-4,           # Convergence tolerance (default: 1e-4)
+    'algorithm': 'lloyd'   # 'lloyd', 'elkan', or 'auto' (default: 'lloyd')
+}
 ```
 
 **Pros:**
@@ -51,6 +109,17 @@ pipeline = ClusterAnalysisPipeline(
 pipeline.fit(df, feature_columns=features)
 ```
 
+**Customizable parameters:**
+```python
+clustering_params={
+    'covariance_type': 'full',  # 'full', 'tied', 'diag', 'spherical' (default: 'full')
+    'n_init': 1,                # Number of initializations (default: 1)
+    'max_iter': 100,            # Maximum iterations (default: 100)
+    'tol': 1e-3,                # Convergence tolerance (default: 1e-3)
+    'reg_covar': 1e-6           # Regularization (default: 1e-6)
+}
+```
+
 **Pros:**
 - Handles elliptical cluster shapes
 - Provides probability of membership
@@ -72,6 +141,16 @@ pipeline = ClusterAnalysisPipeline(
 )
 
 pipeline.fit(df, feature_columns=features)
+```
+
+**Customizable parameters:**
+```python
+clustering_params={
+    'linkage': 'ward',        # 'ward', 'complete', 'average', 'single' (default: 'ward')
+    'metric': 'euclidean',    # Distance metric (default: 'euclidean')
+    'memory': None,           # Path to cache dendrogram (default: None)
+    'connectivity': None      # Connectivity constraints (default: None)
+}
 ```
 
 **Linkage methods:**
@@ -101,14 +180,27 @@ pipeline = ClusterAnalysisPipeline(
 
 pipeline.fit(df, feature_columns=features)
 
-# Noise points labeled as -1
-noise_count = (pipeline.labels_ == -1).sum()
-print(f"Noise points: {noise_count}")
+# Check noise statistics (v0.12.0+)
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
+```
+
+**Customizable parameters:**
+```python
+clustering_params={
+    'eps': 0.5,              # Neighborhood radius (default: auto-estimated)
+    'min_samples': 5,        # Minimum points per cluster (default: auto-estimated)
+    'metric': 'euclidean',   # Distance metric (default: 'euclidean')
+    'algorithm': 'auto',     # 'auto', 'ball_tree', 'kd_tree', 'brute' (default: 'auto')
+    'leaf_size': 30,         # Leaf size for tree algorithms (default: 30)
+    'p': None                # Power for Minkowski metric (default: None)
+}
 ```
 
 **Parameters:**
-- `eps`: Maximum distance between points (auto-estimated)
-- `min_samples`: Minimum points to form cluster (auto-estimated)
+- `eps`: Maximum distance between points (auto-estimated if not provided)
+- `min_samples`: Minimum points to form cluster (auto-estimated if not provided)
 
 **Pros:**
 - Finds arbitrary-shaped clusters
@@ -139,8 +231,39 @@ pipeline.fit(df, feature_columns=features)
 probs = pipeline.model_.probabilities_
 weak_members = probs < 0.5  # Points weakly assigned
 
+# Check noise statistics (v0.12.0+)
 print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise points: {pipeline.metrics_['n_noise']}")
+print(f"Noise ratio: {pipeline.metrics_['noise_ratio']:.2%}")
 print(f"Weak cluster members: {weak_members.sum()}")
+```
+
+**Customizable parameters (v0.12.0+):**
+```python
+clustering_params={
+    'min_cluster_size': 50,              # Minimum cluster size (default: auto = sqrt(n_samples))
+    'min_samples': 10,                    # Core points threshold (default: auto = min_cluster_size)
+    'cluster_selection_method': 'eom',    # 'eom' or 'leaf' (default: 'eom')
+    'metric': 'euclidean',                # Distance metric (default: 'euclidean')
+    'alpha': 1.0,                         # Distance scaling (default: 1.0)
+    'cluster_selection_epsilon': 0.0,     # DBSCAN-like epsilon (default: 0.0)
+    'algorithm': 'best',                  # 'best', 'generic', 'prims_kdtree', etc. (default: 'best')
+    'leaf_size': 40,                      # Leaf size for tree algorithms (default: 40)
+    'approx_min_span_tree': True          # Approximate MST (default: True)
+}
+```
+
+**Example: Custom min_cluster_size for large datasets**
+```python
+# For large datasets, increase min_cluster_size to avoid too many small clusters
+pipeline = ClusterAnalysisPipeline(
+    clustering_algorithm='hdbscan',
+    clustering_params={
+        'min_cluster_size': 100,  # Require at least 100 samples per cluster
+        'min_samples': 20         # Higher threshold for core points
+    }
+)
+pipeline.fit(df, feature_columns=features)
 ```
 
 **Key Features:**
@@ -150,8 +273,8 @@ print(f"Weak cluster members: {weak_members.sum()}")
 - Automatic cluster stability assessment
 
 **Parameters:**
-- `min_cluster_size`: Minimum points for a cluster (auto: sqrt(n_samples))
-- `min_samples`: Minimum points in neighborhood (auto: equals min_cluster_size)
+- `min_cluster_size`: Minimum points for a cluster (auto: sqrt(n_samples), or custom via clustering_params)
+- `min_samples`: Minimum points in neighborhood (auto: equals min_cluster_size, or custom via clustering_params)
 
 **Pros:**
 - Handles varying density clusters (DBSCAN limitation)

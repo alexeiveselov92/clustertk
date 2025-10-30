@@ -26,7 +26,7 @@ class ClusterProfiler:
     Attributes
     ----------
     profiles_ : pd.DataFrame
-        Mean values of features for each cluster.
+        Mean values of features for each cluster (excluding noise points).
 
     profiles_normalized_ : pd.DataFrame
         Normalized profiles (0-1 scale per feature).
@@ -36,6 +36,12 @@ class ClusterProfiler:
 
     category_scores_ : pd.DataFrame
         Average scores by category for each cluster.
+
+    n_noise_ : int (v0.12.0+)
+        Number of noise points (label -1) from DBSCAN/HDBSCAN.
+
+    noise_ratio_ : float (v0.12.0+)
+        Ratio of noise points to total samples.
 
     Examples
     --------
@@ -62,6 +68,8 @@ class ClusterProfiler:
         self.top_features_: Optional[Dict[int, Dict[str, List]]] = None
         self.category_scores_: Optional[pd.DataFrame] = None
         self._feature_names: Optional[List[str]] = None
+        self.n_noise_: int = 0  # Number of noise points (v0.12.0+)
+        self.noise_ratio_: float = 0.0  # Ratio of noise points (v0.12.0+)
 
     def create_profiles(
         self,
@@ -86,7 +94,13 @@ class ClusterProfiler:
         Returns
         -------
         profiles : pd.DataFrame
-            Mean feature values for each cluster.
+            Mean feature values for each cluster (excluding noise points if present).
+
+        Notes
+        -----
+        v0.12.0+: Noise points (label -1 from DBSCAN/HDBSCAN) are excluded from
+        cluster profiles. The number of noise points is stored in `n_noise_` and
+        `noise_ratio_` attributes.
         """
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame")
@@ -96,11 +110,24 @@ class ClusterProfiler:
 
         self._feature_names = feature_names or X.columns.tolist()
 
+        # Check for noise points (DBSCAN/HDBSCAN use -1 for noise) (v0.12.0+)
+        has_noise = np.any(labels == -1)
+        if has_noise:
+            self.n_noise_ = int(np.sum(labels == -1))
+            self.noise_ratio_ = float(self.n_noise_ / len(labels))
+        else:
+            self.n_noise_ = 0
+            self.noise_ratio_ = 0.0
+
         # Create DataFrame with labels
         data_with_labels = X.copy()
         data_with_labels['cluster'] = labels
 
-        # Compute mean profiles
+        # Filter out noise points before computing cluster profiles (v0.12.0+)
+        if has_noise:
+            data_with_labels = data_with_labels[data_with_labels['cluster'] != -1]
+
+        # Compute mean profiles (excluding noise points)
         self.profiles_ = data_with_labels.groupby('cluster')[self._feature_names].mean()
 
         # Normalize profiles per feature (for visualization)
@@ -193,6 +220,11 @@ class ClusterProfiler:
         # Create DataFrame with labels
         data_with_labels = X.copy()
         data_with_labels['cluster'] = labels
+
+        # Filter out noise points (v0.12.0+)
+        has_noise = np.any(labels == -1)
+        if has_noise:
+            data_with_labels = data_with_labels[data_with_labels['cluster'] != -1]
 
         category_scores = {}
 
