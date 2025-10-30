@@ -18,8 +18,8 @@ class ClusterAnalysisPipeline:
     This class orchestrates the entire clustering workflow including:
     - Data preprocessing (missing values, outliers, scaling)
     - Feature selection (correlation, variance)
-    - Dimensionality reduction (PCA)
-    - Clustering (K-Means, GMM, Hierarchical, DBSCAN)
+    - Dimensionality reduction (PCA/UMAP/None with smart auto-mode)
+    - Clustering (K-Means, GMM, Hierarchical, DBSCAN, HDBSCAN)
     - Evaluation (metrics, optimal k finding)
     - Interpretation (profiling, naming)
     - Visualization (optional - requires matplotlib and seaborn)
@@ -91,15 +91,60 @@ class ClusterAnalysisPipeline:
         Minimum variance threshold for feature selection.
         Features with variance < threshold will be removed.
 
+    smart_correlation : bool, default=True
+        Use smart correlation filter (Hopkins statistic) to select best
+        feature from correlated pairs. If False, drops first feature found.
+
+    correlation_strategy : str, default='hopkins'
+        Strategy for selecting features from correlated pairs when smart_correlation=True.
+        Options: 'hopkins', 'variance_ratio', 'mean_corr'.
+
+    dim_reduction : str, default='auto'
+        Dimensionality reduction method to use. **NEW in v0.15.0!**
+        Options:
+        - 'auto': Smart selection based on algorithm and number of features (RECOMMENDED)
+          * K-Means/GMM with <50 features → 'none'
+          * K-Means/GMM with ≥50 features → 'pca'
+          * DBSCAN/HDBSCAN with <30 features → 'none'
+          * DBSCAN/HDBSCAN with ≥30 features → 'umap'
+        - 'pca': Principal Component Analysis (linear, preserves global structure)
+          Best for: K-Means, GMM, Hierarchical
+        - 'umap': Uniform Manifold Approximation (non-linear, preserves local density)
+          Best for: DBSCAN, HDBSCAN (requires: pip install umap-learn)
+        - 'none': No dimensionality reduction (work in original feature space)
+
     pca_variance : float, default=0.9
         Minimum proportion of variance to explain with PCA components.
+        Only used if dim_reduction='pca' or auto-selected as PCA.
 
     pca_min_components : int, default=2
         Minimum number of PCA components to keep (for visualization).
+        Only used if dim_reduction='pca' or auto-selected as PCA.
+
+    umap_n_neighbors : int, default=30
+        Size of local neighborhood for UMAP (higher = more global structure).
+        Only used if dim_reduction='umap' or auto-selected as UMAP.
+
+    umap_min_dist : float, default=0.1
+        Minimum distance between points in UMAP embedding (higher = looser clusters).
+        Only used if dim_reduction='umap' or auto-selected as UMAP.
+
+    umap_n_components : int, default=10
+        Number of UMAP components to keep. NOTE: For clustering use 10-20,
+        NOT 2! Lower dimensions (2-3) are only for visualization.
+        Only used if dim_reduction='umap' or auto-selected as UMAP.
+
+    umap_metric : str, default='euclidean'
+        Distance metric for UMAP. Options: 'euclidean', 'manhattan', 'cosine', etc.
+        Only used if dim_reduction='umap' or auto-selected as UMAP.
 
     clustering_algorithm : str or object, default='kmeans'
         Clustering algorithm to use.
-        Options: 'kmeans', 'gmm', 'hierarchical', 'dbscan', or a custom clusterer.
+        Options: 'kmeans', 'gmm', 'hierarchical', 'dbscan', 'hdbscan', or a custom clusterer.
+
+    clustering_params : dict or None, default=None
+        Additional parameters to pass to the clustering algorithm.
+        Example: {'max_iter': 500} for K-Means, {'min_samples': 5} for DBSCAN.
 
     n_clusters : int, list, or None, default=None
         Number of clusters. If None, will be automatically determined.
@@ -135,7 +180,7 @@ class ClusterAnalysisPipeline:
         List of selected feature names after feature selection.
 
     data_reduced_ : pd.DataFrame
-        Data after dimensionality reduction (PCA components).
+        Data after dimensionality reduction (PCA/UMAP components or original features).
 
     labels_ : np.ndarray
         Cluster labels for each sample.
@@ -157,6 +202,8 @@ class ClusterAnalysisPipeline:
 
     Examples
     --------
+    Basic usage with auto-mode (recommended):
+
     >>> from clustertk import ClusterAnalysisPipeline
     >>> import pandas as pd
     >>>
@@ -164,10 +211,10 @@ class ClusterAnalysisPipeline:
     >>> df = pd.DataFrame({'feature1': [1, 2, 3, 4, 5],
     ...                    'feature2': [2, 4, 6, 8, 10]})
     >>>
-    >>> # Create and fit pipeline
+    >>> # Create and fit pipeline (auto-mode selects best dim_reduction)
     >>> pipeline = ClusterAnalysisPipeline(
-    ...     handle_missing='median',
-    ...     correlation_threshold=0.85,
+    ...     dim_reduction='auto',  # Smart selection (default)
+    ...     clustering_algorithm='kmeans',
     ...     n_clusters=2
     ... )
     >>> pipeline.fit(df)
@@ -175,6 +222,25 @@ class ClusterAnalysisPipeline:
     >>> # Get results
     >>> labels = pipeline.labels_
     >>> profiles = pipeline.cluster_profiles_
+
+    Using HDBSCAN with UMAP for density-based clustering:
+
+    >>> # For high-dimensional data with HDBSCAN
+    >>> pipeline = ClusterAnalysisPipeline(
+    ...     dim_reduction='umap',  # Preserves local density
+    ...     umap_n_components=10,  # NOT 2! For clustering, not viz
+    ...     clustering_algorithm='hdbscan'
+    ... )
+    >>> pipeline.fit(large_df)  # doctest: +SKIP
+
+    Forcing no dimensionality reduction:
+
+    >>> # Work in original feature space
+    >>> pipeline = ClusterAnalysisPipeline(
+    ...     dim_reduction='none',
+    ...     clustering_algorithm='dbscan'
+    ... )
+    >>> pipeline.fit(df)  # doctest: +SKIP
     """
 
     def __init__(

@@ -15,6 +15,7 @@ ClusterTK provides a complete, sklearn-style pipeline for clustering: from raw d
 - 🔄 **Complete Pipeline** - One-line solution from raw data to insights
 - 📊 **Multiple Algorithms** - K-Means, GMM, Hierarchical, DBSCAN, HDBSCAN
 - 🎯 **Auto-Optimization** - Automatic optimal cluster number selection
+- 🧮 **Smart Dimensionality Reduction** - PCA/UMAP/None with algorithm-specific auto-mode (**NEW in v0.15.0!**)
 - 🎨 **Rich Visualization** - Beautiful plots (optional dependency)
 - 📁 **Export & Reports** - CSV, JSON, HTML reports with embedded plots
 - 💾 **Save/Load** - Persist and reload fitted pipelines
@@ -43,9 +44,10 @@ df = pd.read_csv('your_data.csv')
 
 # Create and fit pipeline
 pipeline = ClusterAnalysisPipeline(
+    dim_reduction='auto',      # Smart selection (PCA/UMAP/None based on algorithm)
     handle_missing='median',
     correlation_threshold=0.85,
-    n_clusters=None,  # Auto-detect optimal number
+    n_clusters=None,           # Auto-detect optimal number
     verbose=True
 )
 
@@ -96,9 +98,23 @@ Each step is configurable through pipeline parameters or can be run independentl
 
 ### Preprocessing
 - Missing value handling (median/mean/drop)
-- Outlier detection and treatment
+- Univariate outlier handling (winsorize/robust/clip/remove)
+- Multivariate outlier detection (IsolationForest/LOF/EllipticEnvelope)
 - Automatic scaling (robust/standard/minmax)
 - Skewness transformation
+
+### Dimensionality Reduction (v0.15.0+)
+- **Auto-mode** - Smart selection based on algorithm + data
+- **PCA** - Linear, preserves global structure (best for K-Means/GMM)
+- **UMAP** - Non-linear, preserves local density (best for HDBSCAN/DBSCAN)
+- **None** - Work in original feature space (low-dimensional data)
+
+| Algorithm | Features | Auto Selection |
+|-----------|----------|----------------|
+| K-Means/GMM | <50 | None |
+| K-Means/GMM | ≥50 | PCA |
+| HDBSCAN/DBSCAN | <30 | None |
+| HDBSCAN/DBSCAN | ≥30 | UMAP |
 
 ### Clustering Algorithms
 - **K-Means** - Fast, spherical clusters
@@ -123,6 +139,30 @@ Each step is configurable through pipeline parameters or can be run independentl
 - Pipeline serialization (save/load)
 
 ## Examples
+
+### HDBSCAN with UMAP (v0.15.0+)
+
+```python
+# Perfect for high-dimensional density-based clustering
+pipeline = ClusterAnalysisPipeline(
+    dim_reduction='umap',         # Preserves local density
+    umap_n_components=10,          # NOT 2! For clustering, not viz
+    clustering_algorithm='hdbscan'
+)
+
+pipeline.fit(high_dim_data)
+
+# UMAP preserves density → HDBSCAN finds real clusters!
+print(f"Found {pipeline.n_clusters_} clusters")
+print(f"Noise ratio: {pipeline.cluster_profiles_.noise_ratio_:.1%}")
+```
+
+**Why UMAP for HDBSCAN?**
+- PCA destroys local density → HDBSCAN finds only noise
+- UMAP preserves local structure → HDBSCAN works correctly
+- Auto-mode selects UMAP for HDBSCAN/DBSCAN when features >30
+
+**Important:** Use `n_components=10-20` for clustering, NOT 2-3 (visualization only)!
 
 ### Feature Importance Analysis
 
