@@ -121,3 +121,8 @@ Thumbs.db
 
 # For developing folder (reference code)
 for_developing/
+
+# Internal development documentation (not for public)
+CLAUDE.md
+ARCHITECTURE.md
+TODO.md
