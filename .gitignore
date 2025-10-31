@@ -126,3 +126,6 @@ for_developing/
 CLAUDE.md
 ARCHITECTURE.md
 TODO.md
+
+# Claude Code settings (contains sensitive data like API tokens)
+.claude/
