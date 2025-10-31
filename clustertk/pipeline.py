@@ -2991,7 +2991,7 @@ class ClusterAnalysisPipeline:
                 html_parts.append(f'<p><em>Could not generate plots: {e}</em></p>')
 
         # Pipeline configuration
-        html_parts.append('<h2>Pipeline Configuration</h2>')
+        html_parts.append('<h2>⚙️ Pipeline Configuration</h2>')
         html_parts.append('<div class="config">')
 
         # Determine cluster configuration display
@@ -3003,21 +3003,86 @@ class ClusterAnalysisPipeline:
         else:
             cluster_config = f"Auto-selected from range {self.n_clusters_range}: {self.n_clusters_}"
 
-        config_items = [
+        # Build configuration sections
+        config_sections = []
+
+        # Preprocessing
+        config_sections.append(('Preprocessing', [
             ('Missing Value Strategy', self.handle_missing),
-            ('Outlier Handling', self.handle_outliers),
-            ('Scaling Method', self.scaling),
+            ('Univariate Outlier Handling', self.handle_outliers),
+        ]))
+
+        # Add outlier percentiles if winsorize is used
+        if self.handle_outliers == 'winsorize':
+            config_sections[-1][1].append(
+                ('Outlier Percentiles', f"{self.outlier_percentiles[0]*100:.1f}%-{self.outlier_percentiles[1]*100:.1f}%")
+            )
+
+        # Add multivariate outliers if enabled
+        if hasattr(self, 'detect_multivariate_outliers') and self.detect_multivariate_outliers:
+            config_sections[-1][1].append(
+                ('Multivariate Outlier Detection', self.detect_multivariate_outliers)
+            )
+            if hasattr(self, 'multivariate_contamination'):
+                config_sections[-1][1].append(
+                    ('Contamination Level', f"{self.multivariate_contamination:.1%}")
+                )
+
+        config_sections[-1][1].append(('Scaling Method', self.scaling))
+
+        # Feature Selection
+        config_sections.append(('Feature Selection', [
             ('Correlation Threshold', self.correlation_threshold),
             ('Variance Threshold', self.variance_threshold),
-            ('PCA Variance', self.pca_variance),
+        ]))
+
+        if hasattr(self, 'min_cluster_size') and self.min_cluster_size:
+            config_sections[-1][1].append(('Min Cluster Size', self.min_cluster_size))
+
+        # Dimensionality Reduction
+        dim_reduction_items = [('Reduction Method', self.dim_reduction)]
+
+        if self.dim_reduction == 'pca':
+            dim_reduction_items.append(('PCA Variance Threshold', self.pca_variance))
+            if hasattr(self, '_reducer') and self._reducer is not None:
+                dim_reduction_items.append(('Components Used', self._reducer.n_components_))
+        elif self.dim_reduction == 'umap':
+            dim_reduction_items.append(('UMAP Components', self.umap_n_components))
+        elif self.dim_reduction == 'auto':
+            actual_method = 'none'
+            if hasattr(self, '_reducer') and self._reducer is not None:
+                if hasattr(self._reducer, 'pca_'):
+                    actual_method = 'pca'
+                elif hasattr(self._reducer, 'reducer_'):
+                    actual_method = 'umap'
+            dim_reduction_items.append(('Auto-Selected Method', actual_method))
+
+        config_sections.append(('Dimensionality Reduction', dim_reduction_items))
+
+        # Clustering
+        clustering_items = [
+            ('Algorithm', self.clustering_algorithm),
             ('Number of Clusters', cluster_config),
-            ('Random State', self.random_state),
         ]
 
-        for label, value in config_items:
-            html_parts.append(f'<div class="config-item"><strong>{label}:</strong> {value}</div>')
+        # Add clustering_params if any were provided
+        if hasattr(self, 'clustering_params') and self.clustering_params:
+            params_str = ', '.join([f"{k}={v}" for k, v in self.clustering_params.items()])
+            clustering_items.append(('Custom Parameters', params_str))
 
+        clustering_items.append(('Random State', self.random_state))
+
+        config_sections.append(('Clustering', clustering_items))
+
+        # Render configuration sections
+        for section_title, items in config_sections:
+            html_parts.append(f'<h3>{section_title}</h3>')
+            for label, value in items:
+                html_parts.append(f'<div class="config-item"><strong>{label}:</strong> {value}</div>')
+
+        # Feature count
         if self.selected_features_:
+            html_parts.append(f'<h3>Features</h3>')
             html_parts.append(f'<div class="config-item"><strong>Selected Features:</strong> {len(self.selected_features_)} features</div>')
 
         html_parts.append('</div>')

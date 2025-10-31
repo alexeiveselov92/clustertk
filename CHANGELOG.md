@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] - 2025-10-30
+
+### Improved
+- **Enhanced Pipeline Configuration in HTML Reports** - Complete redesign of configuration section
+  - Organized into logical sections: Preprocessing, Feature Selection, Dimensionality Reduction, Clustering, Features
+  - Added missing parameters:
+    - `outlier_percentiles` - Shows percentile range for winsorization (e.g., "2.5%-97.5%")
+    - `dim_reduction` method - Shows actual reduction method used ('auto'/'pca'/'umap'/'none')
+    - `umap_n_components` - Number of UMAP components when using UMAP
+    - `detect_multivariate_outliers` - Multivariate outlier detection method
+    - `multivariate_contamination` - Expected contamination level for multivariate outliers
+    - `clustering_algorithm` - Algorithm used (kmeans/gmm/hdbscan/etc)
+    - `clustering_params` - Custom algorithm parameters if provided
+    - `min_cluster_size` - Minimum cluster size enforcement
+  - Auto-detection features:
+    - Shows actual components used for PCA (not just variance threshold)
+    - Shows auto-selected method when dim_reduction='auto'
+    - Conditional display: only shows relevant parameters based on configuration
+  - Better structure: clear subsections with emoji icons (⚙️ Pipeline Configuration)
+
+### Why This Matters
+- Reports now accurately reflect all pipeline settings
+- Easier to reproduce results - all parameters are documented
+- Better transparency for feature selection and dimensionality reduction decisions
+- Critical for comparing different pipeline configurations
+
 ## [0.16.1] - 2025-10-30
 
 ### Fixed
